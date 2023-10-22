@@ -1,0 +1,29 @@
+---
+title: "Turbulence Analysis"
+author: "Tingnan Hu, Peter Liu, Islina Shan, Ken Ye"
+date: "`r Sys.Date()`"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# Load Data & Libraries
+
+```{r}
+train <- read.csv("data-train.csv")
+test <- read.csv("data-test.csv")
+```
+
+# EDA
+
+```{r}
+
+```
+
+# Simple Linear Regression
+
+```{r}
+
+```
