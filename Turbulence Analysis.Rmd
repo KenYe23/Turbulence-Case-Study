@@ -14,9 +14,53 @@ knitr::opts_chunk$set(echo = TRUE)
 ```{r}
 train <- read.csv("data-train.csv")
 test <- read.csv("data-test.csv")
+library(ggplot2)
+```
+
+```{r}
+head(train)
 ```
 
 # EDA
+
+```{r}
+summary(train)
+```
+
+```{r}
+# Create histograms for the predictor variables
+ggplot(train, aes(x = Re)) + geom_histogram()
+ggplot(train, aes(x = Fr)) + geom_histogram()
+ggplot(train, aes(x = St)) + geom_histogram()
+```
+
+```{r}
+# Create scatterplots to explore relationships between predictor variables with R_moment_1
+ggplot(train, aes(x = Re, y = R_moment_1)) + geom_point()
+ggplot(train, aes(x = Fr, y = R_moment_1)) + geom_point()
+ggplot(train, aes(x = St, y = R_moment_1)) + geom_point()
+```
+
+```{r}
+# Create scatterplots to explore relationships between predictor variables with R_moment_2
+ggplot(train, aes(x = Re, y = R_moment_2)) + geom_point()
+ggplot(train, aes(x = Fr, y = R_moment_2)) + geom_point()
+ggplot(train, aes(x = St, y = R_moment_2)) + geom_point()
+```
+
+```{r}
+# Create scatterplots to explore relationships between predictor variables with R_moment_3
+ggplot(train, aes(x = Re, y = R_moment_3)) + geom_point()
+ggplot(train, aes(x = Fr, y = R_moment_3)) + geom_point()
+ggplot(train, aes(x = St, y = R_moment_3)) + geom_point()
+```
+
+```{r}
+# Create scatterplots to explore relationships between predictor variables with R_moment_4
+ggplot(train, aes(x = Re, y = R_moment_4)) + geom_point()
+ggplot(train, aes(x = Fr, y = R_moment_4)) + geom_point()
+ggplot(train, aes(x = St, y = R_moment_4)) + geom_point()
+```
 
 ```{r}
 
