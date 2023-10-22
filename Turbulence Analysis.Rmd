@@ -32,6 +32,10 @@ summary(train)
 ggplot(train, aes(x = Re)) + geom_histogram()
 ggplot(train, aes(x = Fr)) + geom_histogram()
 ggplot(train, aes(x = St)) + geom_histogram()
+ggplot(train, aes(x = R_moment_1)) + geom_histogram()
+ggplot(train, aes(x = R_moment_2)) + geom_histogram()
+ggplot(train, aes(x = R_moment_3)) + geom_histogram()
+ggplot(train, aes(x = R_moment_4)) + geom_histogram()
 ```
 
 ```{r}
@@ -62,12 +66,40 @@ ggplot(train, aes(x = Fr, y = R_moment_4)) + geom_point()
 ggplot(train, aes(x = St, y = R_moment_4)) + geom_point()
 ```
 
-```{r}
-
-```
-
 # Simple Linear Regression
 
-```{r}
+-   Justify making Fr as a categorical variable
 
+```{r}
+library(dplyr)
+
+train <- train %>% 
+  mutate(flow = case_when(
+    Fr < 0.1 ~ 'super subcritical',
+    Fr < 1 & Fr > 0.1 ~ 'subcritical',
+    Fr > 1 ~ 'supercritical'
+  )) %>% 
+  mutate(
+    log.moment.2 <- log(R_moment_2),
+    log.moment.3 <- log(R_moment_3),
+    log.moment.4 <- log(R_moment_4)
+  )
+```
+
+```{r}
+lm.fit.m1 <- lm(R_moment_1 ~ Re + St + flow, data = train)
+summary(lm.fit.m1)
+
+lm.fit.m2 <- lm(log(R_moment_2) ~ Re + St + flow, data = train)
+summary(lm.fit.m2)
+
+lm.fit.m3 <- lm(log(R_moment_3) ~ Re + St + flow, data = train)
+summary(lm.fit.m3)
+
+lm.fit.m4 <- lm(log(R_moment_4) ~ Re + St + flow, data = train)
+summary(lm.fit.m4)
+```
+
+```{r}
+plot(lm.fit.m1)
 ```
