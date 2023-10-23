@@ -72,6 +72,7 @@ ggplot(train, aes(x = St, y = R_moment_4)) + geom_point()
 
 ```{r}
 library(dplyr)
+library(car)
 
 train <- train %>% 
   mutate(flow = case_when(
@@ -91,12 +92,22 @@ train <- train %>%
       Re == 398 ~ 'high'
     )
   )
+
+train %>% 
+  filter(Re == 224 & Fr == Inf)
 ```
 
 ```{r}
-lm.fit.m1 <- lm(R_moment_1 ~ Re.fac + St + flow, data = train)
-summary(lm.fit.m1)
+#Not sure why NAs are generated for Re.facmid:flowsupercritical int term
 
+lm.fit.m1 <- lm(R_moment_1 ~ Re.fac + St + flow + Re.fac:flow, data = train)
+summary(lm.fit.m1)
+plot(lm.fit.m1)
+vif(lm.fit.m1)
+
+```
+
+```{r}
 lm.fit.m2 <- lm(log(R_moment_2) ~ Re + St + flow, data = train)
 summary(lm.fit.m2)
 
@@ -110,10 +121,6 @@ summary(lm.fit.m4)
 Considering a simple linear regression on the first moment: we have a 0.64 adjusted R squared value and non significant F-statistics; however the residual vs fitted values plot indicates a obvious non-linear trend, which suggests that the linearity assumption is violated.
 
 ```{r}
-plot(lm.fit.m1)
-```
-
-```{r}
 ggplot(data = train, aes(y = R_moment_1, x = St, color = flow, shape = Re.fac)) + 
   geom_point() +
   labs(x = 'St: Stokes Number',
@@ -122,4 +129,22 @@ ggplot(data = train, aes(y = R_moment_1, x = St, color = flow, shape = Re.fac)) 
        subtitle = 'faceted by Reynolds Number Level and Flow Level' )
 ```
 
-# Complicated Models
+# Ridge Regression
+
+```{r}
+library(glmnet)
+
+train <- read.csv("data-train.csv")
+test <- as.matrix(test)
+x <- model.matrix(R_moment_1~.,train)[,-1]
+x <- subset(x, select = c(St, Re, Fr))
+y <- train$R_moment_1
+
+grid <- 10^seq(10, -2, length = 100) # grid of values for lambda param
+cv_fit <- cv.glmnet(x, y, alpha = 0, lambda = grid)
+opt_lambda <- cv_fit$lambda.min
+
+ridge.mod <- glmnet(x, y, alpha = 0, lambda = opt_lambda)
+ridge.pred <- predict(ridge.mod, s = 4, newx = test)
+
+```
