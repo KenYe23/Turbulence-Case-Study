@@ -83,11 +83,18 @@ train <- train %>%
     log.moment.2 <- log(R_moment_2),
     log.moment.3 <- log(R_moment_3),
     log.moment.4 <- log(R_moment_4)
+  ) %>% 
+  mutate(
+    Re.fac = case_when(
+      Re == 90 ~ 'low',
+      Re == 224 ~ 'mid',
+      Re == 398 ~ 'high'
+    )
   )
 ```
 
 ```{r}
-lm.fit.m1 <- lm(R_moment_1 ~ Re + St + flow, data = train)
+lm.fit.m1 <- lm(R_moment_1 ~ Re.fac + St + flow, data = train)
 summary(lm.fit.m1)
 
 lm.fit.m2 <- lm(log(R_moment_2) ~ Re + St + flow, data = train)
@@ -100,6 +107,19 @@ lm.fit.m4 <- lm(log(R_moment_4) ~ Re + St + flow, data = train)
 summary(lm.fit.m4)
 ```
 
+Considering a simple linear regression on the first moment: we have a 0.64 adjusted R squared value and non significant F-statistics; however the residual vs fitted values plot indicates a obvious non-linear trend, which suggests that the linearity assumption is violated.
+
 ```{r}
 plot(lm.fit.m1)
 ```
+
+```{r}
+ggplot(data = train, aes(y = R_moment_1, x = St, color = flow, shape = Re.fac)) + 
+  geom_point() +
+  labs(x = 'St: Stokes Number',
+       y = '1st Moment',
+       title = 'First moment vs. Stokes Number',
+       subtitle = 'faceted by Reynolds Number Level and Flow Level' )
+```
+
+# Complicated Models
