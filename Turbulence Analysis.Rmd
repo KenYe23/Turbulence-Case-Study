@@ -110,14 +110,13 @@ train %>%
   filter(Re == 224 & Fr == Inf)
 ```
 
-#### First Order Linear Fit
+#### First Moment Linear Fit
 
 ```{r}
 #Not sure why NAs are generated for Re.facmid:flowsupercritical int term
 
-lm.fit.m1 <- lm(R_moment_1 ~ Re.fac + poly(St,2) + flow + Re.fac:flow, data = train)
+lm.fit.m1 <- lm(R_moment_1 ~ Re.fac + St + flow + Re.fac:flow, data = train)
 summary(lm.fit.m1)
-
 ```
 
 Using 5-fold cross-validation to estimate the test set error
@@ -131,6 +130,24 @@ model <- train(R_moment_1 ~ Re.fac + poly(St,2) + flow + Re.fac:flow, data = tra
 # Summarize the results
 print(model)
 ```
+
+Trying using polynomial terms up to degree of 5 for stokes number:
+
+```{r}
+get_poly <- function(response){
+  fit.1 <- lm(response ~ St + flow + Re.fac, data=train)
+  fit.2 <- lm(response ~ poly(St, 2) + flow + Re.fac, data=train)
+  fit.3 <- lm(response ~ poly(St, 3) + flow + Re.fac, data=train)
+  fit.4 <- lm(response ~ poly(St, 4) + flow + Re.fac, data=train)
+  fit.5 <- lm(response ~ poly(St, 5) + flow + Re.fac, data=train)
+  return(anova(fit.1,fit.2,fit.3,fit.4,fit.5))
+}
+
+moment1 <- get_poly(train$R_moment_1) 
+print(moment1)
+```
+
+Judging from the p value for the associated F-statistics, only the first order term is necessary.
 
 #### Moments 2-4:
 
