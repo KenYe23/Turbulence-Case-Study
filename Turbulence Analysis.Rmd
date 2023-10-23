@@ -66,9 +66,22 @@ ggplot(train, aes(x = Fr, y = R_moment_4)) + geom_point()
 ggplot(train, aes(x = St, y = R_moment_4)) + geom_point()
 ```
 
+The plot below suggests a very possible interaction effect between Stokes number and Reynolds number on 1st Moment:
+
+```{r}
+ggplot(data = train, aes(y = R_moment_1, x = St, color = flow, shape = Re.fac)) + 
+  geom_point() +
+  labs(x = 'St: Stokes Number',
+       y = '1st Moment',
+       title = 'First moment vs. Stokes Number',
+       subtitle = 'faceted by Reynolds Number Level and Flow Level' )
+```
+
 # Simple Linear Regression
 
 -   Justify making Fr as a categorical variable
+
+#### Data Wrangling
 
 ```{r}
 library(dplyr)
@@ -97,15 +110,29 @@ train %>%
   filter(Re == 224 & Fr == Inf)
 ```
 
+#### First Order Linear Fit
+
 ```{r}
 #Not sure why NAs are generated for Re.facmid:flowsupercritical int term
 
-lm.fit.m1 <- lm(R_moment_1 ~ Re.fac + St + flow + Re.fac:flow, data = train)
+lm.fit.m1 <- lm(R_moment_1 ~ Re.fac + poly(St,2) + flow + Re.fac:flow, data = train)
 summary(lm.fit.m1)
-plot(lm.fit.m1)
-vif(lm.fit.m1)
 
 ```
+
+Using 5-fold cross-validation to estimate the test set error
+
+```{r}
+set.seed(123) 
+train.control <- trainControl(method = "cv", number = 5)
+# Train the model
+model <- train(R_moment_1 ~ Re.fac + poly(St,2) + flow + Re.fac:flow, data = train, method = "lm",
+               trControl = train.control)
+# Summarize the results
+print(model)
+```
+
+#### Moments 2-4:
 
 ```{r}
 lm.fit.m2 <- lm(log(R_moment_2) ~ Re + St + flow, data = train)
@@ -118,16 +145,7 @@ lm.fit.m4 <- lm(log(R_moment_4) ~ Re + St + flow, data = train)
 summary(lm.fit.m4)
 ```
 
-Considering a simple linear regression on the first moment: we have a 0.64 adjusted R squared value and non significant F-statistics; however the residual vs fitted values plot indicates a obvious non-linear trend, which suggests that the linearity assumption is violated.
-
-```{r}
-ggplot(data = train, aes(y = R_moment_1, x = St, color = flow, shape = Re.fac)) + 
-  geom_point() +
-  labs(x = 'St: Stokes Number',
-       y = '1st Moment',
-       title = 'First moment vs. Stokes Number',
-       subtitle = 'faceted by Reynolds Number Level and Flow Level' )
-```
+Considering a simple linear regression on the first moment: we have a 0.94 adjusted R squared value and non significant F-statistics; however the residual vs fitted values plot indicates a obvious non-linear trend, which suggests that the linearity assumption is violated.
 
 # Ridge Regression
 
