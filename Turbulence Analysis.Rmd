@@ -1,10 +1,10 @@
 ---
 title: "Turbulence Analysis"
-author: "Tingnan Hu, Peter Liu, Islina Shan, Ken Ye"
+author: "Tingnan Hu, Peter Liu, Islina Shan, Ken Ye, Nancy Zhang"
 date: "`r Sys.Date()`"
 output: pdf_document
 ---
-
+ 
 ```{r setup, include=FALSE}
 #global code chunk settings for knitting
 knitr::opts_chunk$set(echo = FALSE, message = FALSE, warning = FALSE)
