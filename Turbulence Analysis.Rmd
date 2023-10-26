@@ -9,16 +9,42 @@ output: pdf_document
 knitr::opts_chunk$set(echo = TRUE)
 ```
 
+# Introduction
+
+Turbulence is one of the fascinating topics in the research in fluid dynamics. It is characterized its chaotic motion, rapid fluctuations and lack of predictable patterns. Yet, there have been numerous attempts in scientific literature trying to model the behavior of turbulent flows, as turbulent flows are prevalent in our world and are the underlying forces that drive plenty of the physical processes, from wisps of smoking swirling up from the cigarette to mixing of chemicals in industrial processes. A better understanding and prediction of turbulent flow will help us gain a deeper insight into a wide range of applications, such as improved aerodynamics in airplane designs and better climatic modelling.
+
+A subdomain in turbulent flow research deals with particle clustering in turbulent flow focusing on small particles' behavior in turbulent fluids. For our project, we are provided with a set of simulation results on small particle probability distribution. The outcome variable was originally a probability distribution for particle cluster volumes, but it was converted into its first four raw moments $E[X]$ to $E[X^4]$ facilitate analysis. The predictor set contains three variables:
+
+-   Reynolds number Re, which provides information on the type of flow a fluid is experiencing. A low Re corresponds with laminar flow (smooth and orderly), while a high Re corresponds with turbulent flow
+
+-   Gravitational acceleration Fr, which measures the gravitational forces particles are experiencing
+
+-   Stokes number St, where larger value corresponds with larger particle size
+
+The main research objective of our project will be to build a viable statistical model to predict the response variable (first four raw moments of particle probability distribution) using the three predictors at hand, utilizing the data in a training set provided. Specifically, we are interested in the following:
+
+-   Does there exist a significant linear relationship between the predictors and the raw four moments?
+
+-   Is there any significant interaction effects between predictors on the response variables?
+
+-   Does a linear regression model suffice? Or a more complex model is needed to better explain the relationship between the predictor and response
+
+-   Are identified effects for predictors the same for all moments, or they differ for each different moment?
+
+Ultimately, we wish our model to capture sufficient trends in our training data, so that we can predict the four moments in our test set data as accurately as possible.
+
+# Methodology
+
 # Load Data & Libraries
 
 ```{r}
+library(ggplot2)
 train <- read.csv("data-train.csv")
 test <- read.csv("data-test.csv")
-library(ggplot2)
 ```
 
 ```{r}
-head(train)
+
 ```
 
 # EDA
