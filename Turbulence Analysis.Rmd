@@ -146,15 +146,71 @@ train <- train |>
   )
 ```
 
-We then fit a simple linear regression model.
+## Simple Linear Regression
 
-```{r}
+We explore the simple linear regression model first, which results in an
+adjusted R-squared value of 0.9251.
+
+```{r results = "hide"}
 # Fit a simple linear regression model
 lm <- lm(R_moment_1 ~ St + gravity + flow, data = train)
 summary(lm)
 ```
 
+## Explore Interaction Effect
+
+The plot below suggests a possible interaction effect between `St` and `flow`
+number for the 1st Moment, as the low flow (triangle shape) group reveals a
+positive slope, whereas the moderate flow (square shape) and high flow (circular
+shape) groups reveal close-to-zero slopes:
+
+```{r}
+ggplot(data = train, aes(y = R_moment_1, x = St, color = gravity, shape = flow)) + 
+  geom_point() +
+  labs(x = "St: Stokes Number",
+       y = "1st Moment",
+       title = "First moment vs. Stokes Number",
+       subtitle = "Faceted by Gravity and Flow" )
+```
+
+Applying this insight into our linear model for 1st moment, we add the
+interaction term `flow:St`, resulting a higher adjusted R-squared of 0.9676.
+
+```{r result = "hide"}
+lm2 <- lm(R_moment_1 ~ gravity + St + flow + flow:St, data = train)
+summary(lm2)
+```
+
+## Explore Polynomial
+
+We also tried using polynomial terms up to degree of 5 for stokes number, and
+judging from the p value for the associated F-statistics, only the first order
+term is necessary.
+
+## Ridge Regression
+
+## Splines
+
 # Results
+
+## Model 1: Linear Regression w/ Interaction Term
+
+Considering a simple linear regression on the first moment: we have a 0.97
+adjusted R squared value and significant F-statistics; however, the residual vs
+fitted values plot indicates a obvious non-linear trend, which suggests that the
+linearity assumption is violated.
+
+```{r}
+# Diagnostic plots
+par(mfrow=c(2, 2))
+plot(lm2)
+```
+
+## Model 2: Ridge Regression
+
+## Model 3: Ridge Regression
+
+## Final Model: ?
 
 # Conclusion
 
@@ -220,31 +276,9 @@ figure3 <- grid.arrange(p3.Re, p3.Fr, p3.St, p4.Re, p4.Fr, p4.St, ncol = 3, nrow
 figure3
 ```
 
-The plot below suggests a very possible interaction effect between Stokes number
-and Reynolds number on 1st Moment:
-
-```{r}
-ggplot(data = train, aes(y = R_moment_1, x = St, color = gravity, shape = flow)) + 
-  geom_point() +
-  labs(x = "St: Stokes Number",
-       y = "1st Moment",
-       title = "First moment vs. Stokes Number",
-       subtitle = "faceted by Reynolds Number Level and Flow Level" )
-```
-
 ## Simple Linear Regression
 
--   We made `Fr` a categorical variable when fitting a linear regression model,
-    as `Fr` only has three unique values both in the training and testing
-    dataset; one of these values is Inf, which should not be used in a linear
-    regression analysis.
-
 ### First Moment
-
-```{r}
-lm.fit.m1 <- lm(R_moment_1 ~ gravity + St + flow + flow:St, data = train)
-summary(lm.fit.m1)
-```
 
 Using 5-fold cross-validation to estimate the test set error
 
@@ -360,7 +394,7 @@ for(i in 1:4){
 MSE_df <- data.frame(col, MSE)
 ```
 
-## Natural Splines
+## Splines
 
 ```{r}
 # moment 1
