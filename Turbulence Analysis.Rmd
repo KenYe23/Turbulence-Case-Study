@@ -1,6 +1,6 @@
 ---
 title: "Turbulence Analysis"
-author: "Tingnan Hu, Peter Liu, Islina Shan, Ken Ye"
+author: "Tingnan Hu, Peter Liu, Islina Shan, Ken Ye, Nancy Zhang"
 date: "`r Sys.Date()`"
 output: pdf_document
 ---
@@ -12,27 +12,54 @@ knitr::opts_chunk$set(echo = FALSE, message = FALSE, warning = FALSE)
 
 # Introduction
 
-Turbulence is one of the fascinating topics in the research in fluid dynamics. It is characterized its chaotic motion, rapid fluctuations and lack of predictable patterns. Yet, there have been numerous attempts in scientific literature trying to model the behavior of turbulent flows, as turbulent flows are prevalent in our world and are the underlying forces that drive plenty of the physical processes, from wisps of smoking swirling up from the cigarette to mixing of chemicals in industrial processes. A better understanding and prediction of turbulent flow will help us gain a deeper insight into a wide range of applications, such as improved aerodynamics in airplane designs and better climatic modelling.
+Turbulence is one of the fascinating topics in the research in fluid dynamics.
+It is characterized its chaotic motion, rapid fluctuations and lack of
+predictable patterns. Yet, there have been numerous attempts in scientific
+literature trying to model the behavior of turbulent flows, as turbulent flows
+are prevalent in our world and are the underlying forces that drive plenty of
+the physical processes, from wisps of smoking swirling up from the cigarette to
+mixing of chemicals in industrial processes. A better understanding and
+prediction of turbulent flow will help us gain a deeper insight into a wide
+range of applications, such as improved aerodynamics in airplane designs and
+better climatic modelling.
 
-A subdomain in turbulent flow research deals with particle clustering in turbulent flow focusing on small particles' behavior in turbulent fluids. For our project, we are provided with a set of simulation results on small particle probability distribution. The outcome variable was originally a probability distribution for particle cluster volumes, but it was converted into its first four raw moments $E[X]$ to $E[X^4]$ facilitate analysis. The predictor set contains three variables:
+A subdomain in turbulent flow research deals with particle clustering in
+turbulent flow focusing on small particles' behavior in turbulent fluids. For
+our project, we are provided with a set of simulation results on small particle
+probability distribution. The outcome variable was originally a probability
+distribution for particle cluster volumes, but it was converted into its first
+four raw moments $E[X]$ to $E[X^4]$ facilitate analysis. The predictor set
+contains three variables:
 
--   Reynolds number Re, which provides information on the type of flow a fluid is experiencing. A low Re corresponds with laminar flow (smooth and orderly), while a high Re corresponds with turbulent flow
+-   Reynolds number Re, which provides information on the type of flow a fluid
+    is experiencing. A low Re corresponds with laminar flow (smooth and
+    orderly), while a high Re corresponds with turbulent flow
 
--   Gravitational acceleration Fr, which measures the gravitational forces particles are experiencing
+-   Gravitational acceleration Fr, which measures the gravitational forces
+    particles are experiencing
 
 -   Stokes number St, where larger value corresponds with larger particle size
 
-The main research objective of our project will be to build a viable statistical model to predict the response variable (first four raw moments of particle probability distribution) using the three predictors at hand, utilizing the data in a training set provided. Specifically, we are interested in the following:
+The main research objective of our project will be to build a viable statistical
+model to predict the response variable (first four raw moments of particle
+probability distribution) using the three predictors at hand, utilizing the data
+in a training set provided. Specifically, we are interested in the following:
 
--   Does there exist a significant linear relationship between the predictors and the raw four moments?
+-   Does there exist a significant linear relationship between the predictors
+    and the raw four moments?
 
--   Is there any significant interaction effects between predictors on the response variables?
+-   Is there any significant interaction effects between predictors on the
+    response variables?
 
--   Does a linear regression model suffice? Or a more complex model is needed to better explain the relationship between the predictor and response
+-   Does a linear regression model suffice? Or a more complex model is needed to
+    better explain the relationship between the predictor and response
 
--   Are identified effects for predictors the same for all moments, or they differ for each different moment?
+-   Are identified effects for predictors the same for all moments, or they
+    differ for each different moment?
 
-Ultimately, we wish our model to capture sufficient trends in our training data, so that we can predict the four moments in our test set data as accurately as possible.
+Ultimately, we wish our model to capture sufficient trends in our training data,
+so that we can predict the four moments in our test set data as accurately as
+possible.
 
 # Methodology
 
@@ -44,12 +71,18 @@ library(caret)
 library(knitr)
 library(kableExtra)
 library(tidyverse)
+library(gridExtra)
 
 train <- read.csv("data-train.csv")
 test <- read.csv("data-test.csv")
 ```
 
-We begin by some transformations on both predictor and response variables. For predictor variable, we first noticed that Fr only takes on 0.052, 0.3 and Inf in our training and testing data set, and directly using it is not viable since it contains infinity. Since Fr\<1 corresponds with a subcritical flow while Fr \> 1 corresponds with a super critical flow, we create a new categorical variable `flow` by the following:
+We begin by some transformations on both predictor and response variables. For
+predictor variable, we first noticed that Fr only takes on 0.052, 0.3 and Inf in
+our training and testing data set, and directly using it is not viable since it
+contains infinity. Since Fr\<1 corresponds with a subcritical flow while Fr \> 1
+corresponds with a super critical flow, we create a new categorical variable
+`flow` by the following:
 
 ```{r}
 df <- data.frame(
@@ -99,44 +132,48 @@ summary(train)
 
 ```{r}
 # Create histograms for the predictor variables
-ggplot(train, aes(x = Re)) + geom_histogram()
-ggplot(train, aes(x = Fr)) + geom_histogram()
-ggplot(train, aes(x = St)) + geom_histogram()
-ggplot(train, aes(x = R_moment_1)) + geom_histogram()
-ggplot(train, aes(x = R_moment_2)) + geom_histogram()
-ggplot(train, aes(x = R_moment_3)) + geom_histogram()
-ggplot(train, aes(x = R_moment_4)) + geom_histogram()
+p.Re <- ggplot(train, aes(x = Re)) + geom_histogram()
+p.Fr <- ggplot(train, aes(x = Fr)) + geom_histogram()
+p.St <- ggplot(train, aes(x = St)) + geom_histogram()
+p1 <- ggplot(train, aes(x = R_moment_1)) + geom_histogram()
+p2 <- ggplot(train, aes(x = R_moment_2)) + geom_histogram()
+p3 <- ggplot(train, aes(x = R_moment_3)) + geom_histogram()
+p4 <- ggplot(train, aes(x = R_moment_4)) + geom_histogram()
+figure1 <- grid.arrange(p.Re, p.Fr, p.St, p1, p2, p3, p4, ncol = 3, nrow = 3)
 ```
 
 ```{r}
 # Create scatterplots to explore relationships between predictor variables with R_moment_1
-ggplot(train, aes(x = Re, y = R_moment_1)) + geom_point()
-ggplot(train, aes(x = Fr, y = R_moment_1)) + geom_point()
-ggplot(train, aes(x = St, y = R_moment_1)) + geom_point()
+p1.Re <- ggplot(train, aes(x = Re, y = R_moment_1)) + geom_point()
+p1.Fr <- ggplot(train, aes(x = Fr, y = R_moment_1)) + geom_point()
+p1.St <- ggplot(train, aes(x = St, y = R_moment_1)) + geom_point()
 ```
 
 ```{r}
 # Create scatterplots to explore relationships between predictor variables with R_moment_2
-ggplot(train, aes(x = Re, y = R_moment_2)) + geom_point()
-ggplot(train, aes(x = Fr, y = R_moment_2)) + geom_point()
-ggplot(train, aes(x = St, y = R_moment_2)) + geom_point()
+p2.Re <- ggplot(train, aes(x = Re, y = R_moment_2)) + geom_point()
+p2.Fr <- ggplot(train, aes(x = Fr, y = R_moment_2)) + geom_point()
+p2.St <- ggplot(train, aes(x = St, y = R_moment_2)) + geom_point()
 ```
 
 ```{r}
 # Create scatterplots to explore relationships between predictor variables with R_moment_3
-ggplot(train, aes(x = Re, y = R_moment_3)) + geom_point()
-ggplot(train, aes(x = Fr, y = R_moment_3)) + geom_point()
-ggplot(train, aes(x = St, y = R_moment_3)) + geom_point()
+p3.Re <- ggplot(train, aes(x = Re, y = R_moment_3)) + geom_point()
+p3.Fr <- ggplot(train, aes(x = Fr, y = R_moment_3)) + geom_point()
+p3.St <- ggplot(train, aes(x = St, y = R_moment_3)) + geom_point()
 ```
 
 ```{r}
 # Create scatterplots to explore relationships between predictor variables with R_moment_4
-ggplot(train, aes(x = Re, y = R_moment_4)) + geom_point()
-ggplot(train, aes(x = Fr, y = R_moment_4)) + geom_point()
-ggplot(train, aes(x = St, y = R_moment_4)) + geom_point()
+p4.Re <- ggplot(train, aes(x = Re, y = R_moment_4)) + geom_point()
+p4.Fr <- ggplot(train, aes(x = Fr, y = R_moment_4)) + geom_point()
+p4.St <- ggplot(train, aes(x = St, y = R_moment_4)) + geom_point()
+figure2 <- grid.arrange(p1.Re, p1.Fr, p1.St, p2.Re, p2.Fr, p2.St, ncol = 3, nrow = 2)
+figure3 <- grid.arrange(p3.Re, p3.Fr, p3.St, p4.Re, p4.Fr, p4.St, ncol = 3, nrow = 2)
 ```
 
-The plot below suggests a very possible interaction effect between Stokes number and Reynolds number on 1st Moment:
+The plot below suggests a very possible interaction effect between Stokes number
+and Reynolds number on 1st Moment:
 
 ```{r}
 ggplot(data = train, aes(y = R_moment_1, x = St, color = flow, shape = Re.fac)) + 
@@ -149,7 +186,10 @@ ggplot(data = train, aes(y = R_moment_1, x = St, color = flow, shape = Re.fac)) 
 
 # Simple Linear Regression
 
--   We made `Fr` a categorical variable when fitting a linear regression model, as `Fr` only has three unique values both in the training and testing dataset; one of these values is `Inf`, which should not be used in a linear regression analysis. 
+-   We made `Fr` a categorical variable when fitting a linear regression model,
+    as `Fr` only has three unique values both in the training and testing
+    dataset; one of these values is `Inf`, which should not be used in a linear
+    regression analysis.
 
 #### Data Wrangling
 
@@ -190,7 +230,8 @@ moment1 <- get_poly(train$R_moment_1)
 print(moment1)
 ```
 
-Judging from the p value for the associated F-statistics, only the first order term is necessary.
+Judging from the p value for the associated F-statistics, only the first order
+term is necessary.
 
 #### Moments 2-4:
 
@@ -205,7 +246,10 @@ lm.fit.m4 <- lm(log(R_moment_4) ~ Re + St + flow, data = train)
 summary(lm.fit.m4)
 ```
 
-Considering a simple linear regression on the first moment: we have a 0.94 adjusted R squared value and non significant F-statistics; however the residual vs fitted values plot indicates a obvious non-linear trend, which suggests that the linearity assumption is violated.
+Considering a simple linear regression on the first moment: we have a 0.94
+adjusted R squared value and non significant F-statistics; however the residual
+vs fitted values plot indicates a obvious non-linear trend, which suggests that
+the linearity assumption is violated.
 
 # Ridge Regression
 
@@ -273,4 +317,3 @@ for(i in 1:4){
 
 MSE_df <- data.frame(col, MSE)
 ```
-
