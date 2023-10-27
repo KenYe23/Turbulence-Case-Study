@@ -72,6 +72,8 @@ library(knitr)
 library(kableExtra)
 library(tidyverse)
 library(gridExtra)
+library(glmnet)
+library(splines)
 
 train <- read.csv("data-train.csv")
 test <- read.csv("data-test.csv")
@@ -196,9 +198,7 @@ ggplot(data = train, aes(y = R_moment_1, x = St, color = flow, shape = Re.fac)) 
 #### First Moment Linear Fit
 
 ```{r}
-#Not sure why NAs are generated for Re.facmid:flowsupercritical int term
-
-lm.fit.m1 <- lm(R_moment_1 ~ Re.fac + St + flow + Re.fac:flow, data = train)
+lm.fit.m1 <- lm(R_moment_1 ~ Re.fac + St + flow + Re.fac:St, data = train)
 summary(lm.fit.m1)
 ```
 
@@ -247,15 +247,13 @@ summary(lm.fit.m4)
 ```
 
 Considering a simple linear regression on the first moment: we have a 0.94
-adjusted R squared value and non significant F-statistics; however the residual
-vs fitted values plot indicates a obvious non-linear trend, which suggests that
-the linearity assumption is violated.
+adjusted R squared value and significant F-statistics; however, the residual vs
+fitted values plot indicates a obvious non-linear trend, which suggests that the
+linearity assumption is violated.
 
 # Ridge Regression
 
 ```{r}
-library(glmnet)
-
 get_ridge_MSE<- function(arg){
   
   train <- read.csv("data-train.csv")
@@ -316,4 +314,98 @@ for(i in 1:4){
 }
 
 MSE_df <- data.frame(col, MSE)
+```
+
+# Splines
+
+```{r}
+# moment 1
+fit <- lm(R_moment_1 ~ ns(St, knots = c(1, 2)), data = train)
+Stlims <- range(train$St)
+St.grid <- seq(from = Stlims[1], to = Stlims[2], 0.1)
+pred <- predict(fit, newdata = list(St = St.grid), se = TRUE)
+plot(train$St, train$R_moment_1, col = "gray")
+
+lines(St.grid, pred$fit, lwd = 2)
+lines(St.grid, pred$fit + 2*pred$se, lty = "dashed")
+lines(St.grid, pred$fit - 2*pred$se, lty = "dashed")
+
+plot(train$St, train$R_moment_1, xlim = range(St.grid), cex = 0.5, col = "darkgrey")
+title("Smoothing Spline")
+
+fit <- smooth.spline(train$St, train$R_moment_1, df = 10)
+fit2 <- smooth.spline(train$St, train$R_moment_1, cv = TRUE)
+lines(fit, col = "red", lwd = 2)
+lines(fit2, col = "blue", lwd = 2)
+legend("topright", legend = c("10 DF", "2.00 DF"), col = c("red", "blue"),
+       lty = 1, lwd = 2, cex = 0.8)
+```
+
+```{r}
+# moment 2
+fit <- lm(R_moment_2 ~ ns(St, knots = c(1, 2)), data = train)
+Stlims <- range(train$St)
+St.grid <- seq(from = Stlims[1], to = Stlims[2], 0.1)
+pred <- predict(fit, newdata = list(St = St.grid), se = TRUE)
+plot(train$St, train$R_moment_2, col = "gray")
+
+lines(St.grid, pred$fit, lwd = 2)
+lines(St.grid, pred$fit + 2*pred$se, lty = "dashed")
+lines(St.grid, pred$fit - 2*pred$se, lty = "dashed")
+
+plot(train$St, train$R_moment_2, xlim = range(St.grid), cex = 0.5, col = "darkgrey")
+title("Smoothing Spline")
+
+fit <- smooth.spline(train$St, train$R_moment_2, df = 10)
+fit2 <- smooth.spline(train$St, train$R_moment_2, cv = TRUE)
+lines(fit, col = "red", lwd = 2)
+lines(fit2, col = "blue", lwd = 2)
+legend("topright", legend = c("10 DF", "3.06 DF"), col = c("red", "blue"),
+       lty = 1, lwd = 2, cex = 0.8)
+```
+
+```{r}
+# moment 3
+fit <- lm(R_moment_3 ~ ns(St, knots = c(1, 2)), data = train)
+Stlims <- range(train$St)
+St.grid <- seq(from = Stlims[1], to = Stlims[2], 0.1)
+pred <- predict(fit, newdata = list(St = St.grid), se = TRUE)
+plot(train$St, train$R_moment_3, col = "gray")
+
+lines(St.grid, pred$fit, lwd = 2)
+lines(St.grid, pred$fit + 2*pred$se, lty = "dashed")
+lines(St.grid, pred$fit - 2*pred$se, lty = "dashed")
+
+plot(train$St, train$R_moment_3, xlim = range(St.grid), cex = 0.5, col = "darkgrey")
+title("Smoothing Spline")
+
+fit <- smooth.spline(train$St, train$R_moment_3, df = 10)
+fit2 <- smooth.spline(train$St, train$R_moment_3, cv = TRUE)
+lines(fit, col = "red", lwd = 2)
+lines(fit2, col = "blue", lwd = 2)
+legend("topright", legend = c("10 DF", "3.06 DF"), col = c("red", "blue"),
+       lty = 1, lwd = 2, cex = 0.8)
+```
+
+```{r}
+# moment 4
+fit <- lm(R_moment_4 ~ ns(St, knots = c(1, 2)), data = train)
+Stlims <- range(train$St)
+St.grid <- seq(from = Stlims[1], to = Stlims[2], 0.1)
+pred <- predict(fit, newdata = list(St = St.grid), se = TRUE)
+plot(train$St, train$R_moment_4, col = "gray")
+
+lines(St.grid, pred$fit, lwd = 2)
+lines(St.grid, pred$fit + 2*pred$se, lty = "dashed")
+lines(St.grid, pred$fit - 2*pred$se, lty = "dashed")
+
+plot(train$St, train$R_moment_4, xlim = range(St.grid), cex = 0.5, col = "darkgrey")
+title("Smoothing Spline")
+
+fit <- smooth.spline(train$St, train$R_moment_4, df = 10)
+fit2 <- smooth.spline(train$St, train$R_moment_4, cv = TRUE)
+lines(fit, col = "red", lwd = 2)
+lines(fit2, col = "blue", lwd = 2)
+legend("topright", legend = c("10 DF", "3.06 DF"), col = c("red", "blue"),
+       lty = 1, lwd = 2, cex = 0.8)
 ```
