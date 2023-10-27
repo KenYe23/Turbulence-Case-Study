@@ -126,7 +126,13 @@ par(mfrow = c(2,2))
 ggplot(train, aes(x = R_moment_1)) + geom_histogram()
 ```
 
-# EDA
+# Results
+
+# Conclusion
+
+# Appendix
+
+## EDA
 
 ```{r}
 summary(train)
@@ -186,16 +192,14 @@ ggplot(data = train, aes(y = R_moment_1, x = St, color = flow, shape = Re.fac)) 
        subtitle = 'faceted by Reynolds Number Level and Flow Level' )
 ```
 
-# Simple Linear Regression
+## Simple Linear Regression
 
 -   We made `Fr` a categorical variable when fitting a linear regression model,
     as `Fr` only has three unique values both in the training and testing
     dataset; one of these values is `Inf`, which should not be used in a linear
     regression analysis.
 
-#### Data Wrangling
-
-#### First Moment Linear Fit
+### First Moment
 
 ```{r}
 lm.fit.m1 <- lm(R_moment_1 ~ Re.fac + St + flow + Re.fac:St, data = train)
@@ -233,7 +237,7 @@ print(moment1)
 Judging from the p value for the associated F-statistics, only the first order
 term is necessary.
 
-#### Moments 2-4:
+### Moments 2-4
 
 ```{r}
 lm.fit.m2 <- lm(log(R_moment_2) ~ Re + St + flow, data = train)
@@ -251,7 +255,7 @@ adjusted R squared value and significant F-statistics; however, the residual vs
 fitted values plot indicates a obvious non-linear trend, which suggests that the
 linearity assumption is violated.
 
-# Ridge Regression
+## Ridge Regression
 
 ```{r}
 get_ridge_MSE<- function(arg){
@@ -316,7 +320,7 @@ for(i in 1:4){
 MSE_df <- data.frame(col, MSE)
 ```
 
-# Splines
+## Natural Splines
 
 ```{r}
 # moment 1
