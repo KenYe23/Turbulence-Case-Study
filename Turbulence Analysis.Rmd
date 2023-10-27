@@ -1,10 +1,10 @@
 ---
 title: "Turbulence Analysis"
-author: "Tingnan Hu, Peter Liu, Islina Shan, Ken Ye, Nancy Zhang"
+author: "Tingnan Hu, Peter Liu, Islina Shan, Ken Ye"
 date: "`r Sys.Date()`"
 output: pdf_document
 ---
- 
+
 ```{r setup, include=FALSE}
 #global code chunk settings for knitting
 knitr::opts_chunk$set(echo = FALSE, message = FALSE, warning = FALSE)
@@ -149,7 +149,7 @@ ggplot(data = train, aes(y = R_moment_1, x = St, color = flow, shape = Re.fac)) 
 
 # Simple Linear Regression
 
--   Justify making Fr as a categorical variable
+-   We made `Fr` a categorical variable when fitting a linear regression model, as `Fr` only has three unique values both in the training and testing dataset; one of these values is `Inf`, which should not be used in a linear regression analysis. 
 
 #### Data Wrangling
 
@@ -212,17 +212,65 @@ Considering a simple linear regression on the first moment: we have a 0.94 adjus
 ```{r}
 library(glmnet)
 
-train <- read.csv("data-train.csv")
-test <- as.matrix(test)
-x <- model.matrix(R_moment_1~.,train)[,-1]
-x <- subset(x, select = c(St, Re, Fr))
-y <- train$R_moment_1
-
-grid <- 10^seq(10, -2, length = 100) # grid of values for lambda param
-cv_fit <- cv.glmnet(x, y, alpha = 0, lambda = grid)
-opt_lambda <- cv_fit$lambda.min
-
-ridge.mod <- glmnet(x, y, alpha = 0, lambda = opt_lambda)
-ridge.pred <- predict(ridge.mod, s = 4, newx = test)
+get_ridge_MSE<- function(arg){
+  
+  train <- read.csv("data-train.csv")
+  # test <- as.matrix(test)
+  
+  ridge.train.idx <- sample(1:nrow(train), nrow(train)*0.75)
+  
+  if(arg == 1){
+    response = train$R_moment_1
+    ridge.train <- subset(train[ridge.train.idx, ], select = c(St, Re, Fr, R_moment_1))
+    ridge.ytest <- response[- ridge.train.idx]
+    x <- model.matrix(R_moment_1~.,ridge.train)[,-1]
+    y <- ridge.train$R_moment_1
+  } else if(arg == 2){
+    response = train$R_moment_2
+    ridge.train <- subset(train[ridge.train.idx, ], select = c(St, Re, Fr, R_moment_2))
+    ridge.ytest <- response[- ridge.train.idx]
+    x <- model.matrix(R_moment_2~.,ridge.train)[,-1]
+    y <- ridge.train$R_moment_2
+  }else if(arg == 3){
+    response = train$R_moment_3
+    ridge.train <- subset(train[ridge.train.idx, ], select = c(St, Re, Fr, R_moment_3))
+    ridge.ytest <- train$response[- ridge.train.idx]
+    x <- model.matrix(R_moment_3~.,ridge.train)[,-1]
+    y <- ridge.train$R_moment_3
+  }else{
+    response = train$R_moment_4
+    ridge.train <- subset(train[ridge.train.idx, ], select = c(St, Re, Fr, R_moment_4))
+    ridge.ytest <- train$response[- ridge.train.idx]
+    x <- model.matrix(R_moment_4~.,ridge.train)[,-1]
+    y <- ridge.train$R_moment_4
+  }
+  
+  ridge.test <- as.matrix(subset(train[-ridge.train.idx, ], select = c(St, Re, Fr)))
+  x <- subset(x, select = c(St, Re, Fr))
+  
+  
+  grid <- 10^seq(10, -2, length = 100) # grid of values for lambda param
+  cv_fit <- cv.glmnet(x, y, alpha = 0, lambda = grid)
+  opt_lambda <- cv_fit$lambda.min
+  
+  ridge.mod <- glmnet(x, y, alpha = 0, lambda = opt_lambda)
+  ridge.pred <- predict(ridge.mod, s = 4, newx = ridge.test)
+  MSE <- mean((ridge.pred - ridge.ytest)^2) # calculate MSE
+  return(MSE)
+}
 
 ```
+
+```{r}
+
+MSE <- c()
+col <- c("R_moment_1", "R_moment_2", "R_moment_3", "R_moment_4")
+
+for(i in 1:4){
+  val <- get_ridge_MSE(1)
+  MSE <- c(MSE, val)
+}
+
+MSE_df <- data.frame(col, MSE)
+```
+
