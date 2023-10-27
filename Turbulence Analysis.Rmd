@@ -5,15 +5,35 @@ date: "`r Sys.Date()`"
 output: pdf_document
 ---
 
-```{r setup, include=FALSE}
+```{r setup, include = FALSE}
 #global code chunk settings for knitting
 knitr::opts_chunk$set(echo = FALSE, message = FALSE, warning = FALSE)
+```
+
+```{r}
+# Load libraries
+library(ggplot2)
+library(dplyr)
+library(car)
+library(caret)
+library(knitr)
+library(kableExtra)
+library(tidyverse)
+library(gridExtra)
+library(glmnet)
+library(splines)
+```
+
+```{r}
+# Load data
+train <- read.csv("data-train.csv")
+test <- read.csv("data-test.csv")
 ```
 
 # Introduction
 
 Turbulence is one of the fascinating topics in the research in fluid dynamics.
-It is characterized its chaotic motion, rapid fluctuations and lack of
+It is characterized by its chaotic motion, rapid fluctuations and lack of
 predictable patterns. Yet, there have been numerous attempts in scientific
 literature trying to model the behavior of turbulent flows, as turbulent flows
 are prevalent in our world and are the underlying forces that drive plenty of
@@ -31,14 +51,15 @@ distribution for particle cluster volumes, but it was converted into its first
 four raw moments $E[X]$ to $E[X^4]$ facilitate analysis. The predictor set
 contains three variables:
 
--   Reynolds number Re, which provides information on the type of flow a fluid
-    is experiencing. A low Re corresponds with laminar flow (smooth and
-    orderly), while a high Re corresponds with turbulent flow
+-   Reynolds number, `Re`, which provides information on the type of flow a
+    fluid is experiencing. A low `Re` corresponds with laminar flow (smooth and
+    orderly), while a high Re corresponds with turbulent flow.
 
--   Gravitational acceleration Fr, which measures the gravitational forces
-    particles are experiencing
+-   Gravitational acceleration, `Fr`, which measures the gravitational forces
+    particles are experiencing.
 
--   Stokes number St, where larger value corresponds with larger particle size
+-   Stokes number, `St`, where larger value corresponds with larger particle
+    size.
 
 The main research objective of our project will be to build a viable statistical
 model to predict the response variable (first four raw moments of particle
@@ -63,28 +84,12 @@ possible.
 
 # Methodology
 
-```{r}
-library(ggplot2)
-library(dplyr)
-library(car)
-library(caret)
-library(knitr)
-library(kableExtra)
-library(tidyverse)
-library(gridExtra)
-library(glmnet)
-library(splines)
-
-train <- read.csv("data-train.csv")
-test <- read.csv("data-test.csv")
-```
-
 We begin by some transformations on both predictor and response variables. For
-predictor variable, we first noticed that Fr only takes on 0.052, 0.3 and Inf in
-our training and testing data set, and directly using it is not viable since it
-contains infinity. Since Fr\<1 corresponds with a subcritical flow while Fr \> 1
-corresponds with a super critical flow, we create a new categorical variable
-`flow` by the following:
+predictor variable, we first noticed that `Fr` only takes on 0.052, 0.3 and Inf
+in our training and testing data set, and directly using it is not viable since
+it contains infinity. Since `Fr`\<1 corresponds with a subcritical flow while
+`Fr` \> 1 corresponds with a super critical flow, we create a new categorical
+variable `flow` by the following:
 
 ```{r}
 df <- data.frame(
@@ -196,7 +201,7 @@ ggplot(data = train, aes(y = R_moment_1, x = St, color = flow, shape = Re.fac)) 
 
 -   We made `Fr` a categorical variable when fitting a linear regression model,
     as `Fr` only has three unique values both in the training and testing
-    dataset; one of these values is `Inf`, which should not be used in a linear
+    dataset; one of these values is Inf, which should not be used in a linear
     regression analysis.
 
 ### First Moment
