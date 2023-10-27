@@ -2,7 +2,8 @@
 title: "Turbulence Analysis"
 author: "Tingnan Hu, Peter Liu, Islina Shan, Ken Ye, Nancy Zhang"
 date: "`r Sys.Date()`"
-output: pdf_document
+output:
+  pdf_document
 ---
 
 ```{r setup, include = FALSE}
@@ -44,7 +45,7 @@ range of applications, such as improved aerodynamics in airplane designs and
 better climatic modelling.
 
 A subdomain in turbulent flow research deals with particle clustering in
-turbulent flow focusing on small particles' behavior in turbulent fluids. For
+turbulent flow focusing on small particles" behavior in turbulent fluids. For
 our project, we are provided with a set of simulation results on small particle
 probability distribution. The outcome variable was originally a probability
 distribution for particle cluster volumes, but it was converted into its first
@@ -85,51 +86,72 @@ probability distribution for particle cluster volumes.
 
 # Methodology
 
-We begin by some transformations on both predictor and response variables. For
-predictor variable, we first noticed that `Fr` only takes on 0.052, 0.3 and Inf
-in our training and testing data set, and directly using it is not viable since
-it contains infinity. Since `Fr`\<1 corresponds with a subcritical flow while
-`Fr` \> 1 corresponds with a super critical flow, we create a new categorical
-variable `flow` by the following:
+First, we examine the predictor and response variables and perform adequate
+transformations. For predictor variables, we first noticed that `Fr` only takes
+on 0.052, 0.3, and Inf in both our training and testing data set, and directly
+using these values as they are is not viable as they contain infinity.
+Therefore, we create a new categorical variable called `gravity` using the
+following categorization:
 
 ```{r}
+# Gravity acceleration categorization table
 df <- data.frame(
-  Flow = c('super subcritical', 'subcritical', 'supercritical'),
-  Fr = c('Fr < 0.1', '0.1 < Fr < 1', 'Fr > 1')
+  Fr = c("Fr < 0.1", "0.1 < Fr < 1", "Fr > 1"),
+  Gravity = c("low gravity", "moderate gravity", "high gravity")
 )
 
-table <- kable(df) %>%
-    kable_styling("striped", full_width = FALSE) %>%
-    column_spec(1, bold = TRUE) %>% 
+table <- kable(df) |>
+    kable_styling("striped", full_width = FALSE) |>
+    column_spec(1, bold = TRUE) |> 
     kable_styling(latex_options = "HOLD_position", full_width = F)
 
 table
 ```
 
+We also noticed that the predictor variable `Re` only takes on 90, 224, and 398
+in both our training and testing data set. We thus create a new categorical
+variable called `flow` using the following categorization:
+
 ```{r}
-train <- train %>% 
-  mutate(flow = case_when(
-    Fr < 0.1 ~ 'super subcritical',
-    Fr < 1 & Fr > 0.1 ~ 'subcritical',
-    Fr > 1 ~ 'supercritical'
-  )) %>% 
+# Reynolds number categorization table
+df2 <- data.frame(
+  Re = c("Re < 100", "100 < Re < 300", "Re > 300"),
+  Flow = c("low flow", "moderate flow", "high flow")
+)
+
+table2 <- kable(df2) |>
+    kable_styling("striped", full_width = FALSE) |>
+    column_spec(1, bold = TRUE) |> 
+    kable_styling(latex_options = "HOLD_position", full_width = F)
+
+table2
+```
+
+```{r}
+# Transform variables
+train <- train |>
   mutate(
-    log.moment.2 <- log(R_moment_2),
-    log.moment.3 <- log(R_moment_3),
-    log.moment.4 <- log(R_moment_4)
-  ) %>% 
+    gravity = case_when(
+      Fr < 0.1 ~ "low gravity",
+      Fr < 1 & Fr > 0.1 ~ "moderate gravity",
+      Fr > 1 ~ "high gravity"
+    )
+  ) |>
   mutate(
-    Re.fac = case_when(
-      Re == 90 ~ 'low',
-      Re == 224 ~ 'mid',
-      Re == 398 ~ 'high'
+    flow = case_when(
+      Re < 100 ~ "low flow",
+      Re < 300 & Re > 100 ~ "moderate flow",
+      Re > 300 ~ "high flow"
     )
   )
 ```
 
+We then fit a simple linear regression model.
+
 ```{r}
-par(mfrow = c(2,2))
-ggplot(train, aes(x = R_moment_1)) + geom_histogram()
+# Fit a simple linear regression model
+lm <- lm(R_moment_1 ~ St + gravity + flow, data = train)
+summary(lm)
 ```
 
 # Results
@@ -145,7 +167,7 @@ summary(train)
 ```
 
 ```{r}
-# Create histograms for the predictor variables
+# Create histograms for the predictor and response variables
 p.Re <- ggplot(train, aes(x = Re)) + geom_histogram()
 p.Fr <- ggplot(train, aes(x = Fr)) + geom_histogram()
 p.St <- ggplot(train, aes(x = St)) + geom_histogram()
@@ -153,7 +175,11 @@ p1 <- ggplot(train, aes(x = R_moment_1)) + geom_histogram()
 p2 <- ggplot(train, aes(x = R_moment_2)) + geom_histogram()
 p3 <- ggplot(train, aes(x = R_moment_3)) + geom_histogram()
 p4 <- ggplot(train, aes(x = R_moment_4)) + geom_histogram()
+```
+
+```{r}
 figure1 <- grid.arrange(p.Re, p.Fr, p.St, p1, p2, p3, p4, ncol = 3, nrow = 3)
+figure1
 ```
 
 ```{r}
@@ -182,20 +208,28 @@ p3.St <- ggplot(train, aes(x = St, y = R_moment_3)) + geom_point()
 p4.Re <- ggplot(train, aes(x = Re, y = R_moment_4)) + geom_point()
 p4.Fr <- ggplot(train, aes(x = Fr, y = R_moment_4)) + geom_point()
 p4.St <- ggplot(train, aes(x = St, y = R_moment_4)) + geom_point()
+```
+
+```{r}
 figure2 <- grid.arrange(p1.Re, p1.Fr, p1.St, p2.Re, p2.Fr, p2.St, ncol = 3, nrow = 2)
+figure2
+```
+
+```{r}
 figure3 <- grid.arrange(p3.Re, p3.Fr, p3.St, p4.Re, p4.Fr, p4.St, ncol = 3, nrow = 2)
+figure3
 ```
 
 The plot below suggests a very possible interaction effect between Stokes number
 and Reynolds number on 1st Moment:
 
 ```{r}
-ggplot(data = train, aes(y = R_moment_1, x = St, color = flow, shape = Re.fac)) + 
+ggplot(data = train, aes(y = R_moment_1, x = St, color = gravity, shape = flow)) + 
   geom_point() +
-  labs(x = 'St: Stokes Number',
-       y = '1st Moment',
-       title = 'First moment vs. Stokes Number',
-       subtitle = 'faceted by Reynolds Number Level and Flow Level' )
+  labs(x = "St: Stokes Number",
+       y = "1st Moment",
+       title = "First moment vs. Stokes Number",
+       subtitle = "faceted by Reynolds Number Level and Flow Level" )
 ```
 
 ## Simple Linear Regression
@@ -208,7 +242,7 @@ ggplot(data = train, aes(y = R_moment_1, x = St, color = flow, shape = Re.fac)) 
 ### First Moment
 
 ```{r}
-lm.fit.m1 <- lm(R_moment_1 ~ Re.fac + St + flow + Re.fac:St, data = train)
+lm.fit.m1 <- lm(R_moment_1 ~ gravity + St + flow + flow:St, data = train)
 summary(lm.fit.m1)
 ```
 
@@ -218,7 +252,7 @@ Using 5-fold cross-validation to estimate the test set error
 set.seed(123) 
 train.control <- trainControl(method = "cv", number = 5)
 # Train the model
-model <- train(R_moment_1 ~ Re.fac + poly(St,2) + flow + Re.fac:flow, data = train, method = "lm",
+model <- train(R_moment_1 ~ gravity + poly(St,2) + flow + flow:St, data = train, method = "lm",
                trControl = train.control)
 # Summarize the results
 print(model)
@@ -228,11 +262,11 @@ Trying using polynomial terms up to degree of 5 for stokes number:
 
 ```{r}
 get_poly <- function(response){
-  fit.1 <- lm(response ~ St + flow + Re.fac, data=train)
-  fit.2 <- lm(response ~ poly(St, 2) + flow + Re.fac, data=train)
-  fit.3 <- lm(response ~ poly(St, 3) + flow + Re.fac, data=train)
-  fit.4 <- lm(response ~ poly(St, 4) + flow + Re.fac, data=train)
-  fit.5 <- lm(response ~ poly(St, 5) + flow + Re.fac, data=train)
+  fit.1 <- lm(response ~ St + gravity + flow, data=train)
+  fit.2 <- lm(response ~ poly(St, 2) + gravity + flow, data=train)
+  fit.3 <- lm(response ~ poly(St, 3) + gravity + flow, data=train)
+  fit.4 <- lm(response ~ poly(St, 4) + gravity + flow, data=train)
+  fit.5 <- lm(response ~ poly(St, 5) + gravity + flow, data=train)
   return(anova(fit.1,fit.2,fit.3,fit.4,fit.5))
 }
 
@@ -246,13 +280,13 @@ term is necessary.
 ### Moments 2-4
 
 ```{r}
-lm.fit.m2 <- lm(log(R_moment_2) ~ Re + St + flow, data = train)
+lm.fit.m2 <- lm(log(R_moment_2) ~ gravity + St + flow, data = train)
 summary(lm.fit.m2)
 
-lm.fit.m3 <- lm(log(R_moment_3) ~ Re + St + flow, data = train)
+lm.fit.m3 <- lm(log(R_moment_3) ~ gravity + St + flow, data = train)
 summary(lm.fit.m3)
 
-lm.fit.m4 <- lm(log(R_moment_4) ~ Re + St + flow, data = train)
+lm.fit.m4 <- lm(log(R_moment_4) ~ gravity + St + flow, data = train)
 summary(lm.fit.m4)
 ```
 
