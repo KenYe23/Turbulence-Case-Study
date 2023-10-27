@@ -246,7 +246,7 @@ lm.fit.m4 <- lm(log(R_moment_4) ~ Re + St + flow, data = train)
 summary(lm.fit.m4)
 ```
 
-Considering a simple linear regression on the first moment: we have a 0.94
+Considering a simple linear regression on the first moment: we have a 0.97
 adjusted R squared value and significant F-statistics; however, the residual vs
 fitted values plot indicates a obvious non-linear trend, which suggests that the
 linearity assumption is violated.
