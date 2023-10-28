@@ -7,7 +7,6 @@ output:
 ---
 
 ```{r setup, include = FALSE}
-#global code chunk settings for knitting
 knitr::opts_chunk$set(echo = FALSE, message = FALSE, warning = FALSE)
 ```
 
@@ -23,6 +22,7 @@ library(tidyverse)
 library(gridExtra)
 library(glmnet)
 library(splines)
+library(MASS)
 ```
 
 ```{r}
@@ -65,7 +65,7 @@ contains three variables:
 The main research objective of our project will be to build a viable statistical
 model to predict the response variable (first four raw moments of particle
 probability distribution) using the three predictors at hand and the provided
-traning set. Specifically, we are interested in the following:
+training set. Specifically, we are interested in the following:
 
 -   Does there exist a significant linear relationship between the predictors
     and the raw four moments?
@@ -148,69 +148,409 @@ train <- train |>
 
 ## Simple Linear Regression
 
-We explore the simple linear regression model first, which results in an
-adjusted R-squared value of 0.9251.
+We begin with simple linear regression, yielding adjusted R-squared values of
+0.9251, 0.4175, 0.4023, and 0.3906 for moments 1 to 4. In all four models, the
+p-values are close to zero, indicating significant linear relationships between
+the predictors and the raw moments.
 
-```{r results = "hide"}
-# Fit a simple linear regression model
-lm <- lm(R_moment_1 ~ St + gravity + flow, data = train)
-summary(lm)
+```{r results = FALSE}
+# Fit simple linear regression models
+lm.m1 <- lm(R_moment_1 ~ St + gravity + flow, data = train)
+summary(lm.m1)
+
+lm.m2 <- lm(R_moment_2 ~ St + gravity + flow, data = train)
+summary(lm.m2)
+
+lm.m3 <- lm(R_moment_3 ~ St + gravity + flow, data = train)
+summary(lm.m3)
+
+lm.m4 <- lm(R_moment_4 ~ St + gravity + flow, data = train)
+summary(lm.m4)
 ```
 
-## Explore Interaction Effect
-
-The plot below suggests a possible interaction effect between `St` and `flow`
-number for the 1st Moment, as the low flow (triangle shape) group reveals a
-positive slope, whereas the moderate flow (square shape) and high flow (circular
-shape) groups reveal close-to-zero slopes:
-
-```{r}
-ggplot(data = train, aes(y = R_moment_1, x = St, color = gravity, shape = flow)) + 
-  geom_point() +
-  labs(x = "St: Stokes Number",
-       y = "1st Moment",
-       title = "First moment vs. Stokes Number",
-       subtitle = "Faceted by Gravity and Flow" )
-```
-
-Applying this insight into our linear model for 1st moment, we add the
-interaction term `flow:St`, resulting a higher adjusted R-squared of 0.9676.
-
-```{r result = "hide"}
-lm2 <- lm(R_moment_1 ~ gravity + St + flow + flow:St, data = train)
-summary(lm2)
-```
-
-## Explore Polynomial
-
-We also tried using polynomial terms up to degree of 5 for stokes number, and
-judging from the p value for the associated F-statistics, only the first order
-term is necessary.
-
-## Ridge Regression
-
-## Splines
-
-# Results
-
-## Model 1: Linear Regression w/ Interaction Term
-
-Considering a simple linear regression on the first moment: we have a 0.97
-adjusted R squared value and significant F-statistics; however, the residual vs
-fitted values plot indicates a obvious non-linear trend, which suggests that the
-linearity assumption is violated.
+### Explore Response Variable Transformation
 
 ```{r}
 # Diagnostic plots
-par(mfrow=c(2, 2))
-plot(lm2)
+par(mfrow = c(2, 2))
+# Plot the first diagnostic plot for each model
+plot(lm.m1, which = 1, main = "Moment 1")
+plot(lm.m2, which = 1, main = "Moment 2")
+plot(lm.m3, which = 1, main = "Moment 3")
+plot(lm.m4, which = 1, main = "Moment 4")
 ```
 
-## Model 2: Ridge Regression
+Looking at the Residuals vs Fitted plots, we observe clear patterns, which
+suggests that the linearity assumption is violated.
 
-## Model 3: Ridge Regression
+```{r results = FALSE}
+lm.m1.log <- lm(log(R_moment_1) ~ St + gravity + flow, data = train)
+summary(lm.m1.log)
 
-## Final Model: ?
+lm.m2.log <- lm(log(R_moment_2) ~ St + gravity + flow, data = train)
+summary(lm.m2.log)
+
+lm.m3.log <- lm(log(R_moment_3) ~ St + gravity + flow, data = train)
+summary(lm.m3.log)
+
+lm.m4.log <- lm(log(R_moment_4)~ St + gravity + flow, data = train)
+summary(lm.m4.log)
+```
+
+```{r fig.show = "hide"}
+# Diagnostic plots
+par(mfrow = c(2, 2))
+# Plot the first diagnostic plot for each model
+plot(lm.m1.log, which = 1, main = "Log (Moment 1)")
+plot(lm.m2.log, which = 1, main = "Log (Moment 2)")
+plot(lm.m3.log, which = 1, main = "Log (Moment 3)")
+plot(lm.m4.log, which = 1, main = "Log (Moment 4)")
+```
+
+However, log-transforming the response variables not only results in more
+favorable Residuals vs. Fitted plots but also leads to improved adjusted
+R-squared values of 0.9949, 0.7633, 0.6802, and 0.6518 for moments 1 to 4.
+
+### Explore Interaction Effect
+
+```{r fig.show = "hide"}
+ggplot(data = train, 
+       aes(y = log(R_moment_1), 
+           x = St, 
+           color = gravity, 
+           shape = flow)
+       ) + 
+  geom_point() +
+  labs(x = "St: Stokes Number",
+       y = "Log (First Moment)",
+       title = "Log (First moment) vs Stokes Number",
+       subtitle = "Faceted by Gravity and Flow")
+```
+
+```{r fig.show = "hide"}
+ggplot(data = train, 
+       aes(y = log(R_moment_2), 
+           x = St, 
+           color = gravity, 
+           shape = flow)
+       ) + 
+  geom_point() +
+  labs(x = "St: Stokes Number",
+       y = "Log (Second Moment)",
+       title = "Log (Second moment) vs Stokes Number",
+       subtitle = "Faceted by Gravity and Flow")
+```
+
+```{r fig.show = "hide"}
+ggplot(data = train, 
+       aes(y = log(R_moment_3), 
+           x = St, 
+           color = gravity, 
+           shape = flow)
+       ) + 
+  geom_point() +
+  labs(x = "St: Stokes Number",
+       y = "Log (Third Moment)",
+       title = "Log (Third moment) vs Stokes Number",
+       subtitle = "Faceted by Gravity and Flow")
+```
+
+```{r fig.show = "hide"}
+ggplot(data = train, 
+       aes(y = log(R_moment_4), 
+           x = St, 
+           color = gravity, 
+           shape = flow)
+       ) + 
+  geom_point() +
+  labs(x = "St: Stokes Number",
+       y = "Log (Fourth Moment)",
+       title = "Log (Fourth moment) vs Stokes Number",
+       subtitle = "Faceted by Gravity and Flow")
+```
+
+We then investigate the possible interaction effects between the predictor
+variables. The plot below suggests a possible interaction effect between
+`gravity` and `flow`.
+
+```{r}
+custom_theme <- theme(
+  text = element_text(size = 8),
+  axis.title = element_text(size = 8), 
+  plot.title = element_text(size = 10)
+)
+
+# Create a ggplot for Moment 1 with the custom theme
+plot_moment_1 <- ggplot(data = train, aes(x = gravity, color = flow)) +
+  geom_point(aes(y = log(R_moment_1))) +
+  labs(x = "Gravity", y = "Log (Moment 1)") +
+  ggtitle("Log (Moment 1) vs Gravity") +
+  custom_theme
+
+# Create a ggplot for Moment 2 with the custom theme
+plot_moment_2 <- ggplot(data = train, aes(x = gravity, color = flow)) +
+  geom_point(aes(y = log(R_moment_2))) +
+  labs(x = "Gravity", y = "Log (Moment 2)") +
+  ggtitle("Log (Moment 2) vs Gravity") +
+  custom_theme
+
+# Create a ggplot for Moment 3 with the custom theme
+plot_moment_3 <- ggplot(data = train, aes(x = gravity, color = flow)) +
+  geom_point(aes(y = log(R_moment_3))) +
+  labs(x = "Gravity", y = "Log (Moment 3)") +
+  ggtitle("Log (Moment 3) vs Gravity") +
+  custom_theme
+
+# Create a ggplot for Moment 4 with the custom theme
+plot_moment_4 <- ggplot(data = train, aes(x = gravity, color = flow)) +
+  geom_point(aes(y = log(R_moment_4))) +
+  labs(x = "Gravity", y = "Log (Moment 4)") +
+  ggtitle("Log (Moment 4) vs Gravity") +
+  custom_theme
+
+# Arrange the plots in a 2x2 grid
+grid.arrange(plot_moment_1, plot_moment_2, plot_moment_3, plot_moment_4, ncol = 2)
+```
+
+The plot reveals that fitting a linear regression line between `gravity` and the
+response variables for low, moderate, and high `flow` would result in different
+slopes. These varying slopes serve as indicators of an interaction between these
+two variables. This interpretation is further validated by incorporating the
+interaction term into our simple linear regression models, which, in turn,
+yields significant p-values for the interaction terms.
+
+```{r results = FALSE}
+lm.m1.log.int <- lm(log(R_moment_1) ~ St + gravity + flow + St:gravity, data = train)
+summary(lm.m1.log.int)
+
+lm.m2.log.int <- lm(log(R_moment_2) ~ St + gravity + flow + St:gravity, data = train)
+summary(lm.m2.log.int)
+
+lm.m3.log.int <- lm(log(R_moment_3) ~ St + gravity + flow + St:gravity, data = train)
+summary(lm.m3.log.int)
+
+lm.m4.log.int <- lm(log(R_moment_4) ~ St + gravity + flow + St:gravity, data = train)
+summary(lm.m4.log.int)
+```
+
+```{r results = FALSE}
+lm.m1.log.int <- lm(log(R_moment_1) ~ St + gravity + flow + flow:St, data = train)
+summary(lm.m1.log.int)
+
+lm.m2.log.int <- lm(log(R_moment_2) ~ St + gravity + flow + flow:St, data = train)
+summary(lm.m2.log.int)
+
+lm.m3.log.int <- lm(log(R_moment_3) ~ St + gravity + flow + flow:St, data = train)
+summary(lm.m3.log.int)
+
+lm.m4.log.int <- lm(log(R_moment_4) ~ St + gravity + flow + flow:St, data = train)
+summary(lm.m4.log.int)
+```
+
+```{r results = FALSE}
+lm.m1.log.int <- lm(log(R_moment_1) ~ St + gravity + flow + flow:gravity, data = train)
+summary(lm.m1.log.int)
+
+lm.m2.log.int <- lm(log(R_moment_2) ~ St + gravity + flow + flow:gravity, data = train)
+summary(lm.m2.log.int)
+
+lm.m3.log.int <- lm(log(R_moment_3) ~ St + gravity + flow + flow:gravity, data = train)
+summary(lm.m3.log.int)
+
+lm.m4.log.int <- lm(log(R_moment_4) ~ St + gravity + flow + flow:gravity, data = train)
+summary(lm.m4.log.int)
+```
+
+Incorporating this insight into our simple linear regression models by including
+the interaction term `gravity:flow` results in adjusted R-squared values of
+0.9966, 0.8909, 0.8770, and 0.8809 for moments 1 through 4.
+
+### Explore Polynomial Term
+
+```{r results = FALSE}
+get_poly <- function(response){
+  fit.1 <- lm(log(response) ~ St + gravity + flow + flow:gravity, data = train)
+  fit.2 <- lm(log(response) ~ poly(St,2) + gravity + flow + flow:gravity, data = train)
+  fit.3 <- lm(log(response) ~ poly(St,3) + gravity + flow + flow:gravity, data = train)
+  fit.4 <- lm(log(response) ~ poly(St,4) + gravity + flow + flow:gravity, data = train)
+  fit.5 <- lm(log(response) ~ poly(St,5) + gravity + flow + flow:gravity, data = train)
+  fit.6 <- lm(log(response) ~ poly(St,6) + gravity + flow + flow:gravity, data = train)
+  fit.7 <- lm(log(response) ~ poly(St,7) + gravity + flow + flow:gravity, data = train)
+  fit.8 <- lm(log(response) ~ poly(St,8) + gravity + flow + flow:gravity, data = train)
+  return(anova(fit.1,fit.2,fit.3,fit.4,fit.5,fit.6,fit.7,fit.8))
+}
+
+moment1 <- get_poly(train$R_moment_1)
+moment2 <- get_poly(train$R_moment_2)
+moment3 <- get_poly(train$R_moment_3)
+moment4 <- get_poly(train$R_moment_4)
+
+print(moment1)
+print(moment2)
+print(moment3)
+print(moment4)
+```
+
+## Ridge Regression
+
+```{r results = FALSE}
+get_ridge_MSE<- function(arg){
+  
+  train <- read.csv("data-train.csv")
+  # test <- as.matrix(test)
+  
+  ridge.train.idx <- sample(1:nrow(train), nrow(train)*0.75)
+  
+  if(arg == 1){
+    response = train$R_moment_1
+    ridge.train <- subset(train[ridge.train.idx, ], select = c(St, Re, Fr, R_moment_1))
+    ridge.ytest <- response[- ridge.train.idx]
+    x <- model.matrix(R_moment_1~.,ridge.train)[,-1]
+    y <- ridge.train$R_moment_1
+  } else if(arg == 2){
+    response = train$R_moment_2
+    ridge.train <- subset(train[ridge.train.idx, ], select = c(St, Re, Fr, R_moment_2))
+    ridge.ytest <- response[- ridge.train.idx]
+    x <- model.matrix(R_moment_2~.,ridge.train)[,-1]
+    y <- ridge.train$R_moment_2
+  }else if(arg == 3){
+    response = train$R_moment_3
+    ridge.train <- subset(train[ridge.train.idx, ], select = c(St, Re, Fr, R_moment_3))
+    ridge.ytest <- train$response[- ridge.train.idx]
+    x <- model.matrix(R_moment_3~.,ridge.train)[,-1]
+    y <- ridge.train$R_moment_3
+  }else{
+    response = train$R_moment_4
+    ridge.train <- subset(train[ridge.train.idx, ], select = c(St, Re, Fr, R_moment_4))
+    ridge.ytest <- train$response[- ridge.train.idx]
+    x <- model.matrix(R_moment_4~.,ridge.train)[,-1]
+    y <- ridge.train$R_moment_4
+  }
+  
+  ridge.test <- as.matrix(subset(train[-ridge.train.idx, ], select = c(St, Re, Fr)))
+  x <- subset(x, select = c(St, Re, Fr))
+  
+  
+  grid <- 10^seq(10, -2, length = 100) # grid of values for lambda param
+  cv_fit <- cv.glmnet(x, y, alpha = 0, lambda = grid)
+  opt_lambda <- cv_fit$lambda.min
+  
+  ridge.mod <- glmnet(x, y, alpha = 0, lambda = opt_lambda)
+  ridge.pred <- predict(ridge.mod, s = 4, newx = ridge.test)
+  MSE <- mean((ridge.pred - ridge.ytest)^2) # calculate MSE
+  return(MSE)
+}
+```
+
+```{r results = FALSE}
+MSE <- c()
+col <- c("R_moment_1", "R_moment_2", "R_moment_3", "R_moment_4")
+
+for(i in 1:4){
+  val <- get_ridge_MSE(1)
+  MSE <- c(MSE, val)
+}
+
+MSE_df <- data.frame(col, MSE)
+```
+
+## Splines
+
+```{r results = FALSE}
+# moment 1
+fit <- lm(R_moment_1 ~ ns(St, knots = c(1, 2)), data = train)
+Stlims <- range(train$St)
+St.grid <- seq(from = Stlims[1], to = Stlims[2], 0.1)
+pred <- predict(fit, newdata = list(St = St.grid), se = TRUE)
+plot(train$St, train$R_moment_1, col = "gray")
+
+lines(St.grid, pred$fit, lwd = 2)
+lines(St.grid, pred$fit + 2*pred$se, lty = "dashed")
+lines(St.grid, pred$fit - 2*pred$se, lty = "dashed")
+
+plot(train$St, train$R_moment_1, xlim = range(St.grid), cex = 0.5, col = "darkgrey")
+title("Smoothing Spline")
+
+fit <- smooth.spline(train$St, train$R_moment_1, df = 10)
+fit2 <- smooth.spline(train$St, train$R_moment_1, cv = TRUE)
+lines(fit, col = "red", lwd = 2)
+lines(fit2, col = "blue", lwd = 2)
+legend("topright", legend = c("10 DF", "2.00 DF"), col = c("red", "blue"),
+       lty = 1, lwd = 2, cex = 0.8)
+```
+
+```{r results = FALSE}
+# moment 2
+fit <- lm(R_moment_2 ~ ns(St, knots = c(1, 2)), data = train)
+Stlims <- range(train$St)
+St.grid <- seq(from = Stlims[1], to = Stlims[2], 0.1)
+pred <- predict(fit, newdata = list(St = St.grid), se = TRUE)
+plot(train$St, train$R_moment_2, col = "gray")
+
+lines(St.grid, pred$fit, lwd = 2)
+lines(St.grid, pred$fit + 2*pred$se, lty = "dashed")
+lines(St.grid, pred$fit - 2*pred$se, lty = "dashed")
+
+plot(train$St, train$R_moment_2, xlim = range(St.grid), cex = 0.5, col = "darkgrey")
+title("Smoothing Spline")
+
+fit <- smooth.spline(train$St, train$R_moment_2, df = 10)
+fit2 <- smooth.spline(train$St, train$R_moment_2, cv = TRUE)
+lines(fit, col = "red", lwd = 2)
+lines(fit2, col = "blue", lwd = 2)
+legend("topright", legend = c("10 DF", "3.06 DF"), col = c("red", "blue"),
+       lty = 1, lwd = 2, cex = 0.8)
+```
+
+```{r results = FALSE}
+# moment 3
+fit <- lm(R_moment_3 ~ ns(St, knots = c(1, 2)), data = train)
+Stlims <- range(train$St)
+St.grid <- seq(from = Stlims[1], to = Stlims[2], 0.1)
+pred <- predict(fit, newdata = list(St = St.grid), se = TRUE)
+plot(train$St, train$R_moment_3, col = "gray")
+
+lines(St.grid, pred$fit, lwd = 2)
+lines(St.grid, pred$fit + 2*pred$se, lty = "dashed")
+lines(St.grid, pred$fit - 2*pred$se, lty = "dashed")
+
+plot(train$St, train$R_moment_3, xlim = range(St.grid), cex = 0.5, col = "darkgrey")
+title("Smoothing Spline")
+
+fit <- smooth.spline(train$St, train$R_moment_3, df = 10)
+fit2 <- smooth.spline(train$St, train$R_moment_3, cv = TRUE)
+lines(fit, col = "red", lwd = 2)
+lines(fit2, col = "blue", lwd = 2)
+legend("topright", legend = c("10 DF", "3.20 DF"), col = c("red", "blue"),
+       lty = 1, lwd = 2, cex = 0.8)
+```
+
+```{r results = FALSE}
+# moment 4
+fit <- lm(R_moment_4 ~ ns(St, knots = c(1, 2)), data = train)
+Stlims <- range(train$St)
+St.grid <- seq(from = Stlims[1], to = Stlims[2], 0.1)
+pred <- predict(fit, newdata = list(St = St.grid), se = TRUE)
+plot(train$St, train$R_moment_4, col = "gray")
+
+lines(St.grid, pred$fit, lwd = 2)
+lines(St.grid, pred$fit + 2*pred$se, lty = "dashed")
+lines(St.grid, pred$fit - 2*pred$se, lty = "dashed")
+
+plot(train$St, train$R_moment_4, xlim = range(St.grid), cex = 0.5, col = "darkgrey")
+title("Smoothing Spline")
+
+fit <- smooth.spline(train$St, train$R_moment_4, df = 10)
+fit2 <- smooth.spline(train$St, train$R_moment_4, cv = TRUE)
+lines(fit, col = "red", lwd = 2)
+lines(fit2, col = "blue", lwd = 2)
+legend("topright", legend = c("10 DF", "3.23 DF"), col = c("red", "blue"),
+       lty = 1, lwd = 2, cex = 0.8)
+```
+
+# Results
+
+## (Final Model ?)
 
 # Conclusion
 
@@ -274,216 +614,4 @@ figure2
 ```{r}
 figure3 <- grid.arrange(p3.Re, p3.Fr, p3.St, p4.Re, p4.Fr, p4.St, ncol = 3, nrow = 2)
 figure3
-```
-
-## Simple Linear Regression
-
-### First Moment
-
-Using 5-fold cross-validation to estimate the test set error
-
-```{r}
-set.seed(123) 
-train.control <- trainControl(method = "cv", number = 5)
-# Train the model
-model <- train(R_moment_1 ~ gravity + poly(St,2) + flow + flow:St, data = train, method = "lm",
-               trControl = train.control)
-# Summarize the results
-print(model)
-```
-
-Trying using polynomial terms up to degree of 5 for stokes number:
-
-```{r}
-get_poly <- function(response){
-  fit.1 <- lm(response ~ St + gravity + flow, data=train)
-  fit.2 <- lm(response ~ poly(St, 2) + gravity + flow, data=train)
-  fit.3 <- lm(response ~ poly(St, 3) + gravity + flow, data=train)
-  fit.4 <- lm(response ~ poly(St, 4) + gravity + flow, data=train)
-  fit.5 <- lm(response ~ poly(St, 5) + gravity + flow, data=train)
-  return(anova(fit.1,fit.2,fit.3,fit.4,fit.5))
-}
-
-moment1 <- get_poly(train$R_moment_1) 
-print(moment1)
-```
-
-Judging from the p value for the associated F-statistics, only the first order
-term is necessary.
-
-### Moments 2-4
-
-```{r}
-lm.fit.m2 <- lm(log(R_moment_2) ~ gravity + St + flow, data = train)
-summary(lm.fit.m2)
-
-lm.fit.m3 <- lm(log(R_moment_3) ~ gravity + St + flow, data = train)
-summary(lm.fit.m3)
-
-lm.fit.m4 <- lm(log(R_moment_4) ~ gravity + St + flow, data = train)
-summary(lm.fit.m4)
-```
-
-Considering a simple linear regression on the first moment: we have a 0.97
-adjusted R squared value and significant F-statistics; however, the residual vs
-fitted values plot indicates a obvious non-linear trend, which suggests that the
-linearity assumption is violated.
-
-## Ridge Regression
-
-```{r}
-get_ridge_MSE<- function(arg){
-  
-  train <- read.csv("data-train.csv")
-  # test <- as.matrix(test)
-  
-  ridge.train.idx <- sample(1:nrow(train), nrow(train)*0.75)
-  
-  if(arg == 1){
-    response = train$R_moment_1
-    ridge.train <- subset(train[ridge.train.idx, ], select = c(St, Re, Fr, R_moment_1))
-    ridge.ytest <- response[- ridge.train.idx]
-    x <- model.matrix(R_moment_1~.,ridge.train)[,-1]
-    y <- ridge.train$R_moment_1
-  } else if(arg == 2){
-    response = train$R_moment_2
-    ridge.train <- subset(train[ridge.train.idx, ], select = c(St, Re, Fr, R_moment_2))
-    ridge.ytest <- response[- ridge.train.idx]
-    x <- model.matrix(R_moment_2~.,ridge.train)[,-1]
-    y <- ridge.train$R_moment_2
-  }else if(arg == 3){
-    response = train$R_moment_3
-    ridge.train <- subset(train[ridge.train.idx, ], select = c(St, Re, Fr, R_moment_3))
-    ridge.ytest <- train$response[- ridge.train.idx]
-    x <- model.matrix(R_moment_3~.,ridge.train)[,-1]
-    y <- ridge.train$R_moment_3
-  }else{
-    response = train$R_moment_4
-    ridge.train <- subset(train[ridge.train.idx, ], select = c(St, Re, Fr, R_moment_4))
-    ridge.ytest <- train$response[- ridge.train.idx]
-    x <- model.matrix(R_moment_4~.,ridge.train)[,-1]
-    y <- ridge.train$R_moment_4
-  }
-  
-  ridge.test <- as.matrix(subset(train[-ridge.train.idx, ], select = c(St, Re, Fr)))
-  x <- subset(x, select = c(St, Re, Fr))
-  
-  
-  grid <- 10^seq(10, -2, length = 100) # grid of values for lambda param
-  cv_fit <- cv.glmnet(x, y, alpha = 0, lambda = grid)
-  opt_lambda <- cv_fit$lambda.min
-  
-  ridge.mod <- glmnet(x, y, alpha = 0, lambda = opt_lambda)
-  ridge.pred <- predict(ridge.mod, s = 4, newx = ridge.test)
-  MSE <- mean((ridge.pred - ridge.ytest)^2) # calculate MSE
-  return(MSE)
-}
-
-```
-
-```{r}
-
-MSE <- c()
-col <- c("R_moment_1", "R_moment_2", "R_moment_3", "R_moment_4")
-
-for(i in 1:4){
-  val <- get_ridge_MSE(1)
-  MSE <- c(MSE, val)
-}
-
-MSE_df <- data.frame(col, MSE)
-```
-
-## Splines
-
-```{r}
-# moment 1
-fit <- lm(R_moment_1 ~ ns(St, knots = c(1, 2)), data = train)
-Stlims <- range(train$St)
-St.grid <- seq(from = Stlims[1], to = Stlims[2], 0.1)
-pred <- predict(fit, newdata = list(St = St.grid), se = TRUE)
-plot(train$St, train$R_moment_1, col = "gray")
-
-lines(St.grid, pred$fit, lwd = 2)
-lines(St.grid, pred$fit + 2*pred$se, lty = "dashed")
-lines(St.grid, pred$fit - 2*pred$se, lty = "dashed")
-
-plot(train$St, train$R_moment_1, xlim = range(St.grid), cex = 0.5, col = "darkgrey")
-title("Smoothing Spline")
-
-fit <- smooth.spline(train$St, train$R_moment_1, df = 10)
-fit2 <- smooth.spline(train$St, train$R_moment_1, cv = TRUE)
-lines(fit, col = "red", lwd = 2)
-lines(fit2, col = "blue", lwd = 2)
-legend("topright", legend = c("10 DF", "2.00 DF"), col = c("red", "blue"),
-       lty = 1, lwd = 2, cex = 0.8)
-```
-
-```{r}
-# moment 2
-fit <- lm(R_moment_2 ~ ns(St, knots = c(1, 2)), data = train)
-Stlims <- range(train$St)
-St.grid <- seq(from = Stlims[1], to = Stlims[2], 0.1)
-pred <- predict(fit, newdata = list(St = St.grid), se = TRUE)
-plot(train$St, train$R_moment_2, col = "gray")
-
-lines(St.grid, pred$fit, lwd = 2)
-lines(St.grid, pred$fit + 2*pred$se, lty = "dashed")
-lines(St.grid, pred$fit - 2*pred$se, lty = "dashed")
-
-plot(train$St, train$R_moment_2, xlim = range(St.grid), cex = 0.5, col = "darkgrey")
-title("Smoothing Spline")
-
-fit <- smooth.spline(train$St, train$R_moment_2, df = 10)
-fit2 <- smooth.spline(train$St, train$R_moment_2, cv = TRUE)
-lines(fit, col = "red", lwd = 2)
-lines(fit2, col = "blue", lwd = 2)
-legend("topright", legend = c("10 DF", "3.06 DF"), col = c("red", "blue"),
-       lty = 1, lwd = 2, cex = 0.8)
-```
-
-```{r}
-# moment 3
-fit <- lm(R_moment_3 ~ ns(St, knots = c(1, 2)), data = train)
-Stlims <- range(train$St)
-St.grid <- seq(from = Stlims[1], to = Stlims[2], 0.1)
-pred <- predict(fit, newdata = list(St = St.grid), se = TRUE)
-plot(train$St, train$R_moment_3, col = "gray")
-
-lines(St.grid, pred$fit, lwd = 2)
-lines(St.grid, pred$fit + 2*pred$se, lty = "dashed")
-lines(St.grid, pred$fit - 2*pred$se, lty = "dashed")
-
-plot(train$St, train$R_moment_3, xlim = range(St.grid), cex = 0.5, col = "darkgrey")
-title("Smoothing Spline")
-
-fit <- smooth.spline(train$St, train$R_moment_3, df = 10)
-fit2 <- smooth.spline(train$St, train$R_moment_3, cv = TRUE)
-lines(fit, col = "red", lwd = 2)
-lines(fit2, col = "blue", lwd = 2)
-legend("topright", legend = c("10 DF", "3.20 DF"), col = c("red", "blue"),
-       lty = 1, lwd = 2, cex = 0.8)
-```
-
-```{r}
-# moment 4
-fit <- lm(R_moment_4 ~ ns(St, knots = c(1, 2)), data = train)
-Stlims <- range(train$St)
-St.grid <- seq(from = Stlims[1], to = Stlims[2], 0.1)
-pred <- predict(fit, newdata = list(St = St.grid), se = TRUE)
-plot(train$St, train$R_moment_4, col = "gray")
-
-lines(St.grid, pred$fit, lwd = 2)
-lines(St.grid, pred$fit + 2*pred$se, lty = "dashed")
-lines(St.grid, pred$fit - 2*pred$se, lty = "dashed")
-
-plot(train$St, train$R_moment_4, xlim = range(St.grid), cex = 0.5, col = "darkgrey")
-title("Smoothing Spline")
-
-fit <- smooth.spline(train$St, train$R_moment_4, df = 10)
-fit2 <- smooth.spline(train$St, train$R_moment_4, cv = TRUE)
-lines(fit, col = "red", lwd = 2)
-lines(fit2, col = "blue", lwd = 2)
-legend("topright", legend = c("10 DF", "3.23 DF"), col = c("red", "blue"),
-       lty = 1, lwd = 2, cex = 0.8)
 ```
