@@ -33,65 +33,31 @@ test <- read.csv("data-test.csv")
 
 # Introduction
 
-Turbulence is one of the fascinating topics in the research in fluid dynamics.
-It is characterized by its chaotic motion, rapid fluctuations and lack of
-predictable patterns. Yet, there have been numerous attempts in scientific
-literature trying to model the behavior of turbulent flows, as turbulent flows
-are prevalent in our world and are the underlying forces that drive plenty of
-the physical processes, from wisps of smoking swirling up from the cigarette to
-mixing of chemicals in industrial processes. A better understanding and
-prediction of turbulent flow will help us gain a deeper insight into a wide
-range of applications, such as improved aerodynamics in airplane designs and
-better climatic modelling.
+Turbulence is one of the fascinating topics in the research in fluid dynamics. It is characterized by its chaotic motion, rapid fluctuations and lack of predictable patterns. Yet, there have been numerous attempts in scientific literature trying to model the behavior of turbulent flows, as turbulent flows are prevalent in our world and are the underlying forces that drive plenty of the physical processes, from wisps of smoking swirling up from the cigarette to mixing of chemicals in industrial processes. A better understanding and prediction of turbulent flow will help us gain a deeper insight into a wide range of applications, such as improved aerodynamics in airplane designs and better climatic modelling.
 
-A subdomain in turbulent flow research deals with particle clustering in
-turbulent flow focusing on small particles" behavior in turbulent fluids. For
-our project, we are provided with a set of simulation results on small particle
-probability distribution. The outcome variable was originally a probability
-distribution for particle cluster volumes, but it was converted into its first
-four raw moments, $E[X]$ to $E[X^4]$, to facilitate analysis. The predictor set
-contains three variables:
+A subdomain in turbulent flow research deals with particle clustering in turbulent flow focusing on small particles" behavior in turbulent fluids. For our project, we are provided with a set of simulation results on small particle probability distribution. The outcome variable was originally a probability distribution for particle cluster volumes, but it was converted into its first four raw moments, $E[X]$ to $E[X^4]$, to facilitate analysis. The predictor set contains three variables:
 
--   Reynolds number, `Re`, which provides information on the type of flow a
-    fluid is experiencing. A low `Re` corresponds with laminar flow (smooth and
-    orderly), while a high `Re` corresponds with turbulent flow.
+-   Reynolds number, `Re`, which provides information on the type of flow a fluid is experiencing. A low `Re` corresponds with laminar flow (smooth and orderly), while a high `Re` corresponds with turbulent flow.
 
--   Gravitational acceleration, `Fr`, which measures the gravitational forces
-    particles are experiencing.
+-   Gravitational acceleration, `Fr`, which measures the gravitational forces particles are experiencing.
 
--   Stokes number, `St`, where larger value corresponds with larger particle
-    size.
+-   Stokes number, `St`, where larger value corresponds with larger particle size.
 
-The main research objective of our project will be to build a viable statistical
-model to predict the response variable (first four raw moments of particle
-probability distribution) using the three predictors at hand and the provided
-training set. Specifically, we are interested in the following:
+The main research objective of our project will be to build a viable statistical model to predict the response variable (first four raw moments of particle probability distribution) using the three predictors at hand and the provided training set. Specifically, we are interested in the following:
 
--   Does there exist a significant linear relationship between the predictors
-    and the raw four moments?
+-   Does there exist a significant linear relationship between the predictors and the raw four moments?
 
--   Is there any significant interaction effects between predictors on the
-    response variables?
+-   Is there any significant interaction effects between predictors on the response variables?
 
--   Does a linear regression model suffice? Do we need a more complex model to
-    better explain the relationship between the predictors and responses?
+-   Does a linear regression model suffice? Do we need a more complex model to better explain the relationship between the predictors and responses?
 
 -   Do the identified effects of the predictors vary for the four moments?
 
-Ultimately, we aim for our model to capture adequate trends in our training
-data, so that for a new parameter setting of (`Re`, `Fr`, `St`), we can
-accurately predict its particle cluster volume distribution in terms of its four
-raw moments, as well as make inference on how each parameter affects the
-probability distribution for particle cluster volumes.
+Ultimately, we aim for our model to capture adequate trends in our training data, so that for a new parameter setting of (`Re`, `Fr`, `St`), we can accurately predict its particle cluster volume distribution in terms of its four raw moments, as well as make inference on how each parameter affects the probability distribution for particle cluster volumes.
 
 # Methodology
 
-First, we examine the predictor and response variables and perform adequate
-transformations. For predictor variables, we first noticed that `Fr` only takes
-on 0.052, 0.3, and Inf in both our training and testing data set, and directly
-using these values as they are is not viable as they contain infinity.
-Therefore, we create a new categorical variable called `gravity` using the
-following categorization:
+First, we examine the predictor and response variables and perform adequate transformations. For predictor variables, we first noticed that `Fr` only takes on 0.052, 0.3, and Inf in both our training and testing data set, and directly using these values as they are is not viable as they contain infinity. Therefore, we create a new categorical variable called `gravity` using the following categorization:
 
 ```{r}
 # Gravity acceleration categorization table
@@ -108,9 +74,7 @@ table <- kable(df) |>
 table
 ```
 
-We also noticed that the predictor variable `Re` only takes on 90, 224, and 398
-in both our training and testing data set. We thus create a new categorical
-variable called `flow` using the following categorization:
+We also noticed that the predictor variable `Re` only takes on 90, 224, and 398 in both our training and testing data set. We thus create a new categorical variable called `flow` using the following categorization:
 
 ```{r}
 # Reynolds number categorization table
@@ -148,13 +112,11 @@ train <- train |>
 
 ## Simple Linear Regression
 
-We begin with simple linear regression, yielding adjusted R-squared values of
-0.9251, 0.4175, 0.4023, and 0.3906 for moments 1 to 4. In all four models, the
-p-values are close to zero, indicating significant linear relationships between
-the predictors and the raw moments.
+We begin with simple linear regression, yielding adjusted R-squared values of 0.9251, 0.4175, 0.4023, and 0.3906 for moments 1 to 4. In all four models, the p-values are close to zero, indicating significant linear relationships between the predictors and the raw moments.
 
 ```{r results = FALSE}
 # Fit simple linear regression models
+par(mfrow = c(2,2))
 lm.m1 <- lm(R_moment_1 ~ St + gravity + flow, data = train)
 summary(lm.m1)
 
@@ -180,8 +142,7 @@ plot(lm.m3, which = 1, main = "Moment 3")
 plot(lm.m4, which = 1, main = "Moment 4")
 ```
 
-Looking at the Residuals vs Fitted plots, we observe clear patterns, which
-suggests that the linearity assumption is violated.
+Looking at the Residuals vs Fitted plots, we observe clear patterns, which suggests that the linearity assumption is violated.
 
 ```{r results = FALSE}
 lm.m1.log <- lm(log(R_moment_1) ~ St + gravity + flow, data = train)
@@ -207,9 +168,7 @@ plot(lm.m3.log, which = 1, main = "Log (Moment 3)")
 plot(lm.m4.log, which = 1, main = "Log (Moment 4)")
 ```
 
-However, log-transforming the response variables not only results in more
-favorable Residuals vs. Fitted plots but also leads to improved adjusted
-R-squared values of 0.9949, 0.7633, 0.6802, and 0.6518 for moments 1 to 4.
+However, log-transforming the response variables not only results in more favorable Residuals vs. Fitted plots but also leads to improved adjusted R-squared values of 0.9949, 0.7633, 0.6802, and 0.6518 for moments 1 to 4.
 
 ### Explore Interaction Effect
 
@@ -269,9 +228,7 @@ ggplot(data = train,
        subtitle = "Faceted by Gravity and Flow")
 ```
 
-We then investigate the possible interaction effects between the predictor
-variables. The plot below suggests a possible interaction effect between
-`gravity` and `flow`.
+We then investigate the possible interaction effects between the predictor variables. The plot below suggests a possible interaction effect between `gravity` and `flow`.
 
 ```{r}
 custom_theme <- theme(
@@ -312,12 +269,7 @@ plot_moment_4 <- ggplot(data = train, aes(x = gravity, color = flow)) +
 grid.arrange(plot_moment_1, plot_moment_2, plot_moment_3, plot_moment_4, ncol = 2)
 ```
 
-The plot reveals that fitting a linear regression line between `gravity` and the
-response variables for low, moderate, and high `flow` would result in different
-slopes. These varying slopes serve as indicators of an interaction between these
-two variables. This interpretation is further validated by incorporating the
-interaction term into our simple linear regression models, which, in turn,
-yields significant p-values for the interaction terms.
+The plot reveals that fitting a linear regression line between `gravity` and the response variables for low, moderate, and high `flow` would result in different slopes. These varying slopes serve as indicators of an interaction between these two variables. This interpretation is further validated by incorporating the interaction term into our simple linear regression models, which, in turn, yields significant p-values for the interaction terms.
 
 ```{r results = FALSE}
 lm.m1.log.int <- lm(log(R_moment_1) ~ St + gravity + flow + St:gravity, data = train)
@@ -361,13 +313,13 @@ lm.m4.log.int <- lm(log(R_moment_4) ~ St + gravity + flow + flow:gravity, data =
 summary(lm.m4.log.int)
 ```
 
-Incorporating this insight into our simple linear regression models by including
-the interaction term `gravity:flow` results in adjusted R-squared values of
-0.9966, 0.8909, 0.8770, and 0.8809 for moments 1 through 4.
+Incorporating this insight into our simple linear regression models by including the interaction term `gravity:flow` results in adjusted R-squared values of 0.9966, 0.8909, 0.8770, and 0.8809 for moments 1 through 4.
 
 ### Explore Polynomial Term
 
-```{r results = FALSE}
+Considering Stokes number are relatively continuously distributed, we decide to explore higher degrees of stokes number in our model, on top of the interaction effect we just explored. Using analysis of variance of nested models, we discovered that up to eight degrees of stokes number are significant (except for the first moment, which only has up to 7 degrees of Stokes Number as significant terms). We displayed the anova summary for the fourth moment result in the table below.
+
+```{r}
 get_poly <- function(response){
   fit.1 <- lm(log(response) ~ St + gravity + flow + flow:gravity, data = train)
   fit.2 <- lm(log(response) ~ poly(St,2) + gravity + flow + flow:gravity, data = train)
@@ -384,12 +336,18 @@ moment1 <- get_poly(train$R_moment_1)
 moment2 <- get_poly(train$R_moment_2)
 moment3 <- get_poly(train$R_moment_3)
 moment4 <- get_poly(train$R_moment_4)
-
-print(moment1)
-print(moment2)
-print(moment3)
-print(moment4)
 ```
+
+```{r}
+moment4.df <- kable(moment1) %>% 
+  kable_styling("striped", full_width = FALSE) |>
+    column_spec(1, bold = TRUE) |> 
+    kable_styling(latex_options = "HOLD_position", full_width = F)
+
+moment4.df
+```
+
+We choose the model including up to the 7th term of Stokes number, to keep it consistent across all 4 moments, but we do recognize that higher order terms and their associated coefficients are harder to be interpreted.
 
 ## Ridge Regression
 
