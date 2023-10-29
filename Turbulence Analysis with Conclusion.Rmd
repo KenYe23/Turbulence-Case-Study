@@ -1,0 +1,925 @@
+---
+title: "Turbulence Analysis"
+author: "Tingnan Hu, Peter Liu, Islina Shan, Ken Ye, Nancy Zhang"
+date: "`r Sys.Date()`"
+output:
+  pdf_document
+---
+
+```{r setup, include = FALSE}
+knitr::opts_chunk$set(echo = FALSE, message = FALSE, warning = FALSE)
+```
+
+```{r}
+# Load libraries
+library(ggplot2)
+library(dplyr)
+library(car)
+library(caret)
+library(knitr)
+library(kableExtra)
+library(tidyverse)
+library(gridExtra)
+library(glmnet)
+library(splines)
+library(MASS)
+library(broom)
+```
+
+```{r}
+# Load data
+train <- read.csv("data-train.csv")
+test <- read.csv("data-test.csv")
+```
+
+# Introduction
+
+Turbulence is one of the fascinating topics in the research in fluid dynamics.
+It is characterized by its chaotic motion, rapid fluctuations and lack of
+predictable patterns. Yet, there have been numerous attempts in scientific
+literature trying to model the behavior of turbulent flows, as turbulent flows
+are prevalent in our world and are the underlying forces that drive plenty of
+the physical processes, from wisps of smoking swirling up from the cigarette to
+mixing of chemicals in industrial processes. A better understanding and
+prediction of turbulent flow will help us gain a deeper insight into a wide
+range of applications, such as improved aerodynamics in airplane designs and
+better climatic modelling.
+
+A subdomain in turbulent flow research deals with particle clustering in
+turbulent flow focusing on small particles" behavior in turbulent fluids. For
+our project, we are provided with a set of simulation results on small particle
+probability distribution. The outcome variable was originally a probability
+distribution for particle cluster volumes, but it was converted into its first
+four raw moments, $E[X]$ to $E[X^4]$, to facilitate analysis. The predictor set
+contains three variables:
+
+-   Reynolds number, `Re`, which provides information on the type of flow a
+    fluid is experiencing. A low `Re` corresponds with laminar flow (smooth and
+    orderly), while a high `Re` corresponds with turbulent flow.
+
+-   Gravitational acceleration, `Fr`, which measures the gravitational forces
+    particles are experiencing.
+
+-   Stokes number, `St`, where larger value corresponds with larger particle
+    size.
+
+The main research objective of our project will be to build a viable statistical
+model to predict the response variable (first four raw moments of particle
+probability distribution) using the three predictors at hand and the provided
+training set. Specifically, we are interested in the following:
+
+-   Does there exist a significant linear relationship between the predictors
+    and the raw four moments?
+
+-   Is there any significant interaction effects between predictors on the
+    response variables?
+
+-   Does a linear regression model suffice? Do we need a more complex model to
+    better explain the relationship between the predictors and responses?
+
+-   Do the identified effects of the predictors vary for the four moments?
+
+Ultimately, we aim for our model to capture adequate trends in our training
+data, so that for a new parameter setting of (`Re`, `Fr`, `St`), we can
+accurately predict its particle cluster volume distribution in terms of its four
+raw moments, as well as make inference on how each parameter affects the
+probability distribution for particle cluster volumes.
+
+# Methodology and Results
+
+First, we examine the predictor and response variables and perform adequate
+transformations. For predictor variables, we first noticed that `Fr` only takes
+on 0.052, 0.3, and Inf in both our training and testing data set, and directly
+using these values as they are is not viable as they contain infinity.
+Therefore, we create a new categorical variable called `gravity` using the
+following categorization:
+
+```{r}
+# Gravity acceleration categorization table
+df <- data.frame(
+  Fr = c("Fr < 0.1", "0.1 < Fr < 1", "Fr > 1"),
+  Gravity = c("low gravity", "moderate gravity", "high gravity")
+)
+
+table <- kable(df) |>
+    kable_styling("striped", full_width = FALSE) |>
+    column_spec(1, bold = TRUE) |> 
+    kable_styling(latex_options = "HOLD_position", full_width = F)
+
+table
+```
+
+We also noticed that the predictor variable `Re` only takes on 90, 224, and 398
+in both our training and testing data set. We thus create a new categorical
+variable called `flow` using the following categorization:
+
+```{r}
+# Reynolds number categorization table
+df2 <- data.frame(
+  Re = c("Re < 100", "100 < Re < 300", "Re > 300"),
+  Flow = c("low flow", "moderate flow", "high flow")
+)
+
+table2 <- kable(df2) |>
+    kable_styling("striped", full_width = FALSE) |>
+    column_spec(1, bold = TRUE) |> 
+    kable_styling(latex_options = "HOLD_position", full_width = F)
+
+table2
+```
+
+```{r}
+# Transform variables
+train <- train |>
+  mutate(
+    gravity = case_when(
+      Fr < 0.1 ~ "low gravity",
+      Fr < 1 & Fr > 0.1 ~ "moderate gravity",
+      Fr > 1 ~ "high gravity"
+    )
+  ) |>
+  mutate(
+    flow = case_when(
+      Re < 100 ~ "low flow",
+      Re < 300 & Re > 100 ~ "moderate flow",
+      Re > 300 ~ "high flow"
+    )
+  )
+```
+
+## Simple Linear Regression
+
+We begin with simple linear regression, yielding adjusted R-squared values of
+0.9251, 0.4175, 0.4023, and 0.3906 for moments 1 to 4. In all four models, the
+p-values are close to zero, indicating significant linear relationships between
+the predictors and the raw moments.
+
+```{r results = FALSE}
+# Fit a simple linear regression model
+lm.m1 <- lm(R_moment_1 ~ St + gravity + flow, data = train)
+lm.m2 <- lm(R_moment_2 ~ St + gravity + flow, data = train)
+lm.m3 <- lm(R_moment_3 ~ St + gravity + flow, data = train)
+lm.m4 <- lm(R_moment_4 ~ St + gravity + flow, data = train)
+
+metric.1 <- c("R_Moment_1", 0.9251, AIC(lm.m1), BIC(lm.m1))
+summary(lm.m1)
+
+metric.2 <- c("R_Moment_2", 0.4175 , AIC(lm.m2), BIC(lm.m2))
+summary(lm.m2)
+
+metric.3 <- c("R_Moment_3", 0.4023, AIC(lm.m3), BIC(lm.m3))
+summary(lm.m3)
+
+metric.4 <- c("R_Moment_4", 0.3906 , AIC(lm.m4), BIC(lm.m4))
+summary(lm.m4)
+```
+
+```{r results = FALSE}
+col_names <- c("Response", "Adjusted R Squared", "AIC", "BIC")
+lm.df <- data.frame(col_names, metric.1, metric.2, metric.3, metric.4)
+lm.df
+```
+
+The linear regression model on the first moment suggests that `St`,
+`low gravity`, and `low flow` are statistically significant. Linear regression
+on the second moment shows that `St` is non-statistically significant, which is
+consistent with linear regression for the third and fourth moment. The
+regression model fits the first moment well, since it has an adjusted R-squared
+of 0.9251, but it appears that the underlying model for the other moments are
+not linear: the adjusted R-squared for the second, the third, and the fourth
+moment are: 0.4175, 0.4023, 0.3906. The AIC and BIC values suggest that the the
+linear regression model fits the first moment well, since the values are low.
+Nevertheless, other responses all have high AIC and BIC values (\> 1200), which
+indicates that the linear regression model is not a good fit for these response
+variables. Therefore, linear regression model might have a good predictive power
+on the first moment but not for the other moments. This is reasonable, since the
+first moment represents the expectation of particle cluster volumes. Even if the
+predictors have a linear relationship with the mean of the response, it does not
+necessarily follow that the the predictors have a linear relationship with the
+second moment, which represents variance and does not have a linear relationship
+with the expected value of particle cluster volumes, the third moment, which
+represent skewness, or the fourth moment, which is a measure of the heaviness of
+the tail of the distribution.
+
+### Explore Response Variable Transformation
+
+```{r out.width = '50%', fig.align = "center"}
+# Diagnostic plots
+par(mfrow = c(2, 2))
+# Plot the first diagnostic plot for each model
+plot(lm.m1, which = 1, main = "Moment 1")
+plot(lm.m2, which = 1, main = "Moment 2")
+plot(lm.m3, which = 1, main = "Moment 3")
+plot(lm.m4, which = 1, main = "Moment 4")
+```
+
+Looking at the Residuals vs Fitted plots, we observe clear patterns, which
+suggests that the linearity assumption is violated.
+
+```{r results = FALSE}
+lm.m1.log <- lm(log(R_moment_1) ~ St + gravity + flow, data = train)
+summary(lm.m1.log)
+
+lm.m2.log <- lm(log(R_moment_2) ~ St + gravity + flow, data = train)
+summary(lm.m2.log)
+
+lm.m3.log <- lm(log(R_moment_3) ~ St + gravity + flow, data = train)
+summary(lm.m3.log)
+
+lm.m4.log <- lm(log(R_moment_4)~ St + gravity + flow, data = train)
+summary(lm.m4.log)
+```
+
+```{r fig.show = "hide"}
+# Diagnostic plots
+par(mfrow = c(2, 2))
+# Plot the first diagnostic plot for each model
+plot(lm.m1.log, which = 1, main = "Log (Moment 1)")
+plot(lm.m2.log, which = 1, main = "Log (Moment 2)")
+plot(lm.m3.log, which = 1, main = "Log (Moment 3)")
+plot(lm.m4.log, which = 1, main = "Log (Moment 4)")
+```
+
+However, log-transforming the response variables not only results in more
+favorable Residuals vs. Fitted plots but also leads to improved adjusted
+R-squared values of 0.9949, 0.7633, 0.6802, and 0.6518 for moments 1 to 4.
+
+### Explore Interaction Effect
+
+```{r fig.show = "hide"}
+ggplot(data = train, 
+       aes(y = log(R_moment_1), 
+           x = St, 
+           color = gravity, 
+           shape = flow)
+       ) + 
+  geom_point() +
+  labs(x = "St: Stokes Number",
+       y = "Log (First Moment)",
+       title = "Log (First moment) vs Stokes Number",
+       subtitle = "Faceted by Gravity and Flow")
+```
+
+```{r fig.show = "hide"}
+ggplot(data = train, 
+       aes(y = log(R_moment_2), 
+           x = St, 
+           color = gravity, 
+           shape = flow)
+       ) + 
+  geom_point() +
+  labs(x = "St: Stokes Number",
+       y = "Log (Second Moment)",
+       title = "Log (Second moment) vs Stokes Number",
+       subtitle = "Faceted by Gravity and Flow")
+```
+
+```{r fig.show = "hide"}
+ggplot(data = train, 
+       aes(y = log(R_moment_3), 
+           x = St, 
+           color = gravity, 
+           shape = flow)
+       ) + 
+  geom_point() +
+  labs(x = "St: Stokes Number",
+       y = "Log (Third Moment)",
+       title = "Log (Third moment) vs Stokes Number",
+       subtitle = "Faceted by Gravity and Flow")
+```
+
+```{r fig.show = "hide"}
+ggplot(data = train, 
+       aes(y = log(R_moment_4), 
+           x = St, 
+           color = gravity, 
+           shape = flow)
+       ) + 
+  geom_point() +
+  labs(x = "St: Stokes Number",
+       y = "Log (Fourth Moment)",
+       title = "Log (Fourth moment) vs Stokes Number",
+       subtitle = "Faceted by Gravity and Flow")
+```
+
+We then investigate the possible interaction effects between the predictor
+variables. The plot below suggests a possible interaction effect between
+`gravity` and `flow`.
+
+```{r out.width = '50%', fig.align = "center"}
+custom_theme <- theme(
+  text = element_text(size = 8),
+  axis.title = element_text(size = 8), 
+  plot.title = element_text(size = 10)
+)
+
+# Create a ggplot for Moment 1 with the custom theme
+plot_moment_1 <- ggplot(data = train, aes(x = gravity, color = flow)) +
+  geom_point(aes(y = log(R_moment_1))) +
+  labs(x = "Gravity", y = "Log (Moment 1)") +
+  ggtitle("Log (Moment 1) vs Gravity") +
+  custom_theme
+
+# Create a ggplot for Moment 2 with the custom theme
+plot_moment_2 <- ggplot(data = train, aes(x = gravity, color = flow)) +
+  geom_point(aes(y = log(R_moment_2))) +
+  labs(x = "Gravity", y = "Log (Moment 2)") +
+  ggtitle("Log (Moment 2) vs Gravity") +
+  custom_theme
+
+# Create a ggplot for Moment 3 with the custom theme
+plot_moment_3 <- ggplot(data = train, aes(x = gravity, color = flow)) +
+  geom_point(aes(y = log(R_moment_3))) +
+  labs(x = "Gravity", y = "Log (Moment 3)") +
+  ggtitle("Log (Moment 3) vs Gravity") +
+  custom_theme
+
+# Create a ggplot for Moment 4 with the custom theme
+plot_moment_4 <- ggplot(data = train, aes(x = gravity, color = flow)) +
+  geom_point(aes(y = log(R_moment_4))) +
+  labs(x = "Gravity", y = "Log (Moment 4)") +
+  ggtitle("Log (Moment 4) vs Gravity") +
+  custom_theme
+
+# Arrange the plots in a 2x2 grid
+grid.arrange(plot_moment_1, plot_moment_2, plot_moment_3, plot_moment_4, ncol = 2)
+```
+
+The plot reveals that fitting a linear regression line between `gravity` and the
+response variables for low, moderate, and high `flow` would result in different
+slopes. These varying slopes serve as indicators of an interaction between these
+two variables. This interpretation is further validated by incorporating the
+interaction term into our simple linear regression models, which, in turn,
+yields significant p-values for the interaction terms.
+
+```{r results = FALSE}
+lm.m1.log.int <- lm(log(R_moment_1) ~ St + gravity + flow + St:gravity, data = train)
+summary(lm.m1.log.int)
+
+lm.m2.log.int <- lm(log(R_moment_2) ~ St + gravity + flow + St:gravity, data = train)
+summary(lm.m2.log.int)
+
+lm.m3.log.int <- lm(log(R_moment_3) ~ St + gravity + flow + St:gravity, data = train)
+summary(lm.m3.log.int)
+
+lm.m4.log.int <- lm(log(R_moment_4) ~ St + gravity + flow + St:gravity, data = train)
+summary(lm.m4.log.int)
+```
+
+```{r results = FALSE}
+lm.m1.log.int <- lm(log(R_moment_1) ~ St + gravity + flow + flow:St, data = train)
+summary(lm.m1.log.int)
+
+lm.m2.log.int <- lm(log(R_moment_2) ~ St + gravity + flow + flow:St, data = train)
+summary(lm.m2.log.int)
+
+lm.m3.log.int <- lm(log(R_moment_3) ~ St + gravity + flow + flow:St, data = train)
+summary(lm.m3.log.int)
+
+lm.m4.log.int <- lm(log(R_moment_4) ~ St + gravity + flow + flow:St, data = train)
+summary(lm.m4.log.int)
+```
+
+```{r results = FALSE}
+lm.m1.log.int <- lm(log(R_moment_1) ~ St + gravity + flow + flow:gravity, data = train)
+summary(lm.m1.log.int)
+
+lm.m2.log.int <- lm(log(R_moment_2) ~ St + gravity + flow + flow:gravity, data = train)
+summary(lm.m2.log.int)
+
+lm.m3.log.int <- lm(log(R_moment_3) ~ St + gravity + flow + flow:gravity, data = train)
+summary(lm.m3.log.int)
+
+lm.m4.log.int <- lm(log(R_moment_4) ~ St + gravity + flow + flow:gravity, data = train)
+summary(lm.m4.log.int)
+```
+
+Incorporating this insight into our simple linear regression models by including
+the interaction term `gravity:flow` results in adjusted R-squared values of
+0.9966, 0.8909, 0.8770, and 0.8809 for moments 1 through 4.
+
+```{r results = FALSE}
+lm.fit.m1 <- lm(R_moment_1 ~ gravity + St + flow + flow:St + gravity:St + gravity:flow, data = train)
+summary(lm.fit.m1)
+glance(lm.fit.m1) #AIC, BIC ok (~ -600)
+
+lm.fit.int1.m2 <- lm(R_moment_2 ~ gravity + St + flow + flow:St + gravity:St + gravity:flow, data = train)
+summary(lm.fit.int1.m2)
+glance(lm.fit.int1.m2) #AIC, BIC too large (> 1000)
+
+lm.fit.int1.m3 <- lm(R_moment_3 ~ gravity + St + flow + flow:St + gravity:St + gravity:flow, data = train)
+summary(lm.fit.int1.m3)
+glance(lm.fit.int1.m3) #AIC. BIC too large (~ 2700)
+
+lm.fit.int1.m4 <- lm(R_moment_4 ~ gravity + St + flow + flow:St + gravity:St + gravity:flow, data = train)
+summary(lm.fit.int1.m4)
+glance(lm.fit.int1.m4) #AIC, BIC too large (> 4000)
+```
+
+We consider the interaction effects of `Re`, `St`, and `Fr` on each of the four
+moments. Out of the three singular variables, low flow (`Re`) has the most
+significant effect on the first moment, while both low flow (`Re`) and `St` have
+significant effects on the second, third, and fourth moments. All of the three
+pair-wise interaction terms have a significant effect on all four moments. For
+the first moment, the interaction between `St` and low `Re` has the greatest
+effect. For the second, third, and fourth moments, interaction between low `Fr`
+and low `Re` has the most significant effect. For the first moment, this linear
+model with all three pairwise interaction terms is decent with $aR^2 = 0.987$
+and small AIC, BIC values around $-600$. However, the AIC, BIC values for the
+linear models with interactions for second, third, and fourth moments are too
+large, which warrants fitted models with better predictive performance.
+
+### Explore Polynomial Term
+
+Considering Stokes number are relatively continuously distributed, we decide to
+explore higher degrees of stokes number in our model, on top of the interaction
+effect we just explored. Using analysis of variance of nested models, we
+discovered that up to eight degrees of stokes number are significant (except for
+the first moment, which only has up to 7 degrees of Stokes Number as significant
+terms). We displayed the anova summary for the fourth moment result in the table
+below.
+
+```{r}
+get_poly <- function(response){
+  fit.1 <- lm(log(response) ~ St + gravity + flow + flow:gravity, data = train)
+  fit.2 <- lm(log(response) ~ poly(St,2) + gravity + flow + flow:gravity, data = train)
+  fit.3 <- lm(log(response) ~ poly(St,3) + gravity + flow + flow:gravity, data = train)
+  fit.4 <- lm(log(response) ~ poly(St,4) + gravity + flow + flow:gravity, data = train)
+  fit.5 <- lm(log(response) ~ poly(St,5) + gravity + flow + flow:gravity, data = train)
+  fit.6 <- lm(log(response) ~ poly(St,6) + gravity + flow + flow:gravity, data = train)
+  fit.7 <- lm(log(response) ~ poly(St,7) + gravity + flow + flow:gravity, data = train)
+  fit.8 <- lm(log(response) ~ poly(St,8) + gravity + flow + flow:gravity, data = train)
+  return(anova(fit.1,fit.2,fit.3,fit.4,fit.5,fit.6,fit.7,fit.8))
+}
+
+moment1 <- get_poly(train$R_moment_1)
+moment2 <- get_poly(train$R_moment_2)
+moment3 <- get_poly(train$R_moment_3)
+moment4 <- get_poly(train$R_moment_4)
+```
+
+```{r}
+moment4.df <- kable(moment1) %>% 
+  kable_styling("striped", full_width = FALSE) |>
+    column_spec(1, bold = TRUE) |> 
+    kable_styling(latex_options = "HOLD_position", full_width = F)
+
+moment4.df
+```
+
+We choose the model including up to the 7th term of Stokes number, to keep it
+consistent across all 4 moments, but we do recognize that higher order terms and
+their associated coefficients are harder to be interpreted.
+
+## Ridge Regression
+
+To further improve the predictive performance of our model for moment 2, 3, and
+4, we conducted ridge regression on each of the four moments, using 4-fold
+cross-validation to determine the optimal $\lambda$ and MSE to evaluate the
+performance of our fitted model. The MSE of ridge regression models greatly
+improved from simple linear regression models, and are consistent across the
+four moments around 0.001.
+
+```{r results = FALSE}
+get_ridge_MSE<- function(arg){
+  
+  train <- read.csv("data-train.csv")
+  # test <- as.matrix(test)
+  
+  ridge.train.idx <- sample(1:nrow(train), nrow(train)*0.75)
+  
+  if(arg == 1){
+    response = train$R_moment_1
+    ridge.train <- subset(train[ridge.train.idx, ], select = c(St, Re, Fr, R_moment_1))
+    ridge.ytest <- response[- ridge.train.idx]
+    x <- model.matrix(R_moment_1~.,ridge.train)[,-1]
+    y <- ridge.train$R_moment_1
+  } else if(arg == 2){
+    response = train$R_moment_2
+    ridge.train <- subset(train[ridge.train.idx, ], select = c(St, Re, Fr, R_moment_2))
+    ridge.ytest <- response[- ridge.train.idx]
+    x <- model.matrix(R_moment_2~.,ridge.train)[,-1]
+    y <- ridge.train$R_moment_2
+  }else if(arg == 3){
+    response = train$R_moment_3
+    ridge.train <- subset(train[ridge.train.idx, ], select = c(St, Re, Fr, R_moment_3))
+    ridge.ytest <- train$response[- ridge.train.idx]
+    x <- model.matrix(R_moment_3~.,ridge.train)[,-1]
+    y <- ridge.train$R_moment_3
+  }else{
+    response = train$R_moment_4
+    ridge.train <- subset(train[ridge.train.idx, ], select = c(St, Re, Fr, R_moment_4))
+    ridge.ytest <- train$response[- ridge.train.idx]
+    x <- model.matrix(R_moment_4~.,ridge.train)[,-1]
+    y <- ridge.train$R_moment_4
+  }
+  
+  ridge.test <- as.matrix(subset(train[-ridge.train.idx, ], select = c(St, Re, Fr)))
+  x <- subset(x, select = c(St, Re, Fr))
+  
+  
+  grid <- 10^seq(10, -2, length = 100) # grid of values for lambda param
+  cv_fit <- cv.glmnet(x, y, alpha = 0, lambda = grid)
+  opt_lambda <- cv_fit$lambda.min
+  
+  ridge.mod <- glmnet(x, y, alpha = 0, lambda = opt_lambda)
+  ridge.pred <- predict(ridge.mod, s = 4, newx = ridge.test)
+  MSE <- mean((ridge.pred - ridge.ytest)^2) # calculate MSE
+  return(MSE)
+}
+```
+
+```{r results = FALSE}
+MSE <- c()
+col <- c("R_moment_1", "R_moment_2", "R_moment_3", "R_moment_4")
+
+for(i in 1:4){
+  val <- get_ridge_MSE(1)
+  MSE <- c(MSE, val)
+}
+
+MSE_df <- data.frame(col, MSE)
+```
+
+## Splines
+
+We use splines to model non-linear data and capture the complex relationship
+between three parameters (`Re`, `Fr`, `St`) and four moments. We first find the
+degree of freedom by cross validation, then plug the degree moment back to the
+natural spline models to measure the effect of `St`, and factor `Re` and `Fr` on
+the four raw moments.
+
+As the scientific inference, we can observe the factor Re and Fr have the
+largest effect on the fourth raw moment. This makes sense because the fourth
+moment is the expected value of the largest polynomial $x^4$. We can also
+observe the consistent ratio effect of Re and Fr on the change from second to
+third (around 8150 times), third to fourth moment (around 8200 times).
+
+Similarly, the effects are consistency for the continuous parameters St. The
+magnitude of the change from smaller moment to large moment increases a lot.
+
+### Natural Splines
+
+```{r results = FALSE, fig.show = 'hide'}
+
+fit1 <- smooth.spline(train$St, train$R_moment_1, cv = TRUE)
+fit1$df
+
+fit2 <- smooth.spline(train$St, train$R_moment_2, cv = TRUE)
+fit2$df
+
+fit3 <- smooth.spline(train$St, train$R_moment_3, cv = TRUE)
+fit3$df
+
+fit4 <- smooth.spline(train$St, train$R_moment_4, cv = TRUE)
+fit4$df
+
+spline1 <- lm(R_moment_1 ~ ns(St, df = 2) + as.factor(Re) + as.factor(Fr), data = train)
+summary(spline1)
+par(mfrow = c(2,2))
+plot(spline1)
+
+spline2 <- lm(R_moment_2 ~ ns(St, df = 3) + as.factor(Re) + as.factor(Fr), data = train)
+summary(spline2)
+par(mfrow = c(2,2))
+plot(spline2)
+
+spline3 <- lm(R_moment_3 ~ ns(St, df = 3) + as.factor(Re) + as.factor(Fr), data = train)
+summary(spline3)
+par(mfrow = c(2,2))
+plot(spline3)
+
+spline4 <- lm(R_moment_4 ~ ns(St, df = 3) + as.factor(Re) + as.factor(Fr), data = train)
+summary(spline4)
+par(mfrow = c(2,2))
+plot(spline4)
+```
+
+```{r}
+effect_table <- data.frame(
+  Re224 = c(-0.108230, -261.03, -2126058, -1.745e+10),
+  Re398 = c(-0.111706, -316.77, -2579988, -2.117e+10),
+  Fr0.3 = c(-0.007752, -269.58, -2201059, -1.807e+10),
+  FrInf = c(-0.010200, -214.17, -1744529, -1.430e+10)
+)
+effect_table <- as.data.frame(t(effect_table))
+
+colnames(effect_table) <- c("moment 1", "moment 2", "moment 3", "moment 4")
+
+effect_table
+
+Re224_Ratios <- c(-261.03/-0.10823, -2126058/-261.03, -1.745e+10/-2126058)
+Re398_Ratios <- c(-316.77/-0.111706, -2579988/-316.77, -2.117e+10/-2579988)
+Fr0.3_Ratios <- c(-269.58/-0.007752, -2201059/-269.58, -1.807e+10/-2201059)
+FrInf_Ratios <- c(-214.17/-0.010200, -1744529/-214.17, -1.430e+10/-1744529)
+
+
+ratio_table <- data.frame(
+  Re224 = c(Re224_Ratios[1], Re224_Ratios[2], Re224_Ratios[3]),
+  Re398 = c(Re398_Ratios[1], Re398_Ratios[2], Re398_Ratios[3]),
+  Fr0.3 = c(Fr0.3_Ratios[1], Fr0.3_Ratios[2], Fr0.3_Ratios[3]),
+  FrInf = c(FrInf_Ratios[1], FrInf_Ratios[2], FrInf_Ratios[3])
+)
+ratio_table <- as.data.frame(t(ratio_table))
+
+colnames(ratio_table) <- c("moment 2/moment 1", "moment 3/moment 2", "moment 4/moment 3")
+
+ratio_table
+```
+
+```{r results = FALSE, fig.show = 'hide'}
+set.seed(1)
+n <- nrow(train)
+train_indices <- sample(1:n, 0.8 * n) # 0% for training
+train_data <- train[train_indices, ]
+test_data <- train[-train_indices, ]
+dim(train_data)
+dim(test_data) 
+
+spline.AIC <- c()
+spline.BIC <- c()
+
+spline1 <- lm(R_moment_1 ~ ns(St, df = 2) + as.factor(Re) + as.factor(Fr), data = train_data)
+
+spline.AIC <- c(AIC(spline1), spline.AIC)
+spline.BIC <- c(BIC(spline1), spline.BIC)
+
+mse_model1<-mean((predict(spline1, newdata = test_data) - test_data$R_moment_1)^2)
+mse_model1
+
+spline2 <- lm(R_moment_2 ~ ns(St, df = 3) + as.factor(Re) + as.factor(Fr), data = train_data)
+mse_model2<-mean((predict(spline2, newdata = test_data) - test_data$R_moment_2)^2)
+mse_model2
+
+spline.AIC <- c(AIC(spline2), spline.AIC)
+spline.BIC <- c(BIC(spline2), spline.BIC)
+
+spline3 <- lm(R_moment_3 ~ ns(St, df = 3) + as.factor(Re) + as.factor(Fr), data = train_data)
+mse_model3<-mean((predict(spline3, newdata = test_data) - test_data$R_moment_3)^2)
+mse_model3
+
+spline.AIC <- c(AIC(spline3), spline.AIC)
+spline.BIC <- c(BIC(spline3), spline.BIC)
+
+spline4 <- lm(R_moment_4 ~ ns(St, df = 3) + as.factor(Re) + as.factor(Fr), data = train_data)
+mse_model4<-mean((predict(spline4, newdata = test_data) - test_data$R_moment_4)^2)
+mse_model4
+
+spline.AIC <- c(AIC(spline4), spline.AIC) # 3527.9109 2244.5221  961.2395 -378.5083
+spline.BIC <- c(BIC(spline4), spline.BIC) # 3548.2750 2264.8862  981.6036 -360.4069
+
+best_model <- which.min(c(mse_model1, mse_model2, mse_model3))
+best_model
+```
+
+Comparing the MSE values of the natural spline models for the four moments, we
+conclude that natural splines is most suitable for the first moment. However,
+natural splines perform very poorly for the other three moments, which suggests
+that it might not yield the best model for consistent predictive performance
+across the four moments.
+
+```{r results = FALSE, fig.show = 'hide'}
+# Smoothing splines (omit if not enough space)
+# moment 1
+fit <- lm(R_moment_1 ~ ns(St, knots = c(1, 2)), data = train)
+Stlims <- range(train$St)
+St.grid <- seq(from = Stlims[1], to = Stlims[2], 0.1)
+pred <- predict(fit, newdata = list(St = St.grid), se = TRUE)
+plot(train$St, train$R_moment_1, col = "gray")
+
+lines(St.grid, pred$fit, lwd = 2)
+lines(St.grid, pred$fit + 2*pred$se, lty = "dashed")
+lines(St.grid, pred$fit - 2*pred$se, lty = "dashed")
+
+plot(train$St, train$R_moment_1, xlim = range(St.grid), cex = 0.5, col = "darkgrey")
+title("Smoothing Spline")
+
+fit <- smooth.spline(train$St, train$R_moment_1, df = 10)
+fit2 <- smooth.spline(train$St, train$R_moment_1, cv = TRUE)
+lines(fit, col = "red", lwd = 2)
+lines(fit2, col = "blue", lwd = 2)
+legend("topright", legend = c("10 DF", "2.00 DF"), col = c("red", "blue"),
+       lty = 1, lwd = 2, cex = 0.8)
+```
+
+```{r results = FALSE, fig.show = 'hide'}
+# moment 2
+fit <- lm(R_moment_2 ~ ns(St, knots = c(1, 2)), data = train)
+Stlims <- range(train$St)
+St.grid <- seq(from = Stlims[1], to = Stlims[2], 0.1)
+pred <- predict(fit, newdata = list(St = St.grid), se = TRUE)
+plot(train$St, train$R_moment_2, col = "gray")
+
+lines(St.grid, pred$fit, lwd = 2)
+lines(St.grid, pred$fit + 2*pred$se, lty = "dashed")
+lines(St.grid, pred$fit - 2*pred$se, lty = "dashed")
+
+plot(train$St, train$R_moment_2, xlim = range(St.grid), cex = 0.5, col = "darkgrey")
+title("Smoothing Spline")
+
+fit <- smooth.spline(train$St, train$R_moment_2, df = 10)
+fit2 <- smooth.spline(train$St, train$R_moment_2, cv = TRUE)
+lines(fit, col = "red", lwd = 2)
+lines(fit2, col = "blue", lwd = 2)
+legend("topright", legend = c("10 DF", "3.06 DF"), col = c("red", "blue"),
+       lty = 1, lwd = 2, cex = 0.8)
+```
+
+```{r results = FALSE, fig.show = 'hide'}
+# moment 3
+fit <- lm(R_moment_3 ~ ns(St, knots = c(1, 2)), data = train)
+Stlims <- range(train$St)
+St.grid <- seq(from = Stlims[1], to = Stlims[2], 0.1)
+pred <- predict(fit, newdata = list(St = St.grid), se = TRUE)
+plot(train$St, train$R_moment_3, col = "gray")
+
+lines(St.grid, pred$fit, lwd = 2)
+lines(St.grid, pred$fit + 2*pred$se, lty = "dashed")
+lines(St.grid, pred$fit - 2*pred$se, lty = "dashed")
+
+plot(train$St, train$R_moment_3, xlim = range(St.grid), cex = 0.5, col = "darkgrey")
+title("Smoothing Spline")
+
+fit <- smooth.spline(train$St, train$R_moment_3, df = 10)
+fit2 <- smooth.spline(train$St, train$R_moment_3, cv = TRUE)
+lines(fit, col = "red", lwd = 2)
+lines(fit2, col = "blue", lwd = 2)
+legend("topright", legend = c("10 DF", "3.20 DF"), col = c("red", "blue"),
+       lty = 1, lwd = 2, cex = 0.8)
+```
+
+```{r results = FALSE, fig.show = 'hide'}
+# moment 4
+fit <- lm(R_moment_4 ~ ns(St, knots = c(1, 2)), data = train)
+Stlims <- range(train$St)
+St.grid <- seq(from = Stlims[1], to = Stlims[2], 0.1)
+pred <- predict(fit, newdata = list(St = St.grid), se = TRUE)
+plot(train$St, train$R_moment_4, col = "gray")
+
+lines(St.grid, pred$fit, lwd = 2)
+lines(St.grid, pred$fit + 2*pred$se, lty = "dashed")
+lines(St.grid, pred$fit - 2*pred$se, lty = "dashed")
+
+plot(train$St, train$R_moment_4, xlim = range(St.grid), cex = 0.5, col = "darkgrey")
+title("Smoothing Spline")
+
+fit <- smooth.spline(train$St, train$R_moment_4, df = 10)
+fit2 <- smooth.spline(train$St, train$R_moment_4, cv = TRUE)
+lines(fit, col = "red", lwd = 2)
+lines(fit2, col = "blue", lwd = 2)
+legend("topright", legend = c("10 DF", "3.23 DF"), col = c("red", "blue"),
+       lty = 1, lwd = 2, cex = 0.8)
+```
+
+## Final selected model and predictive performance
+
+Considering the relative performances of simple linear regression models with
+interaction effects and polynomial terms, ridge regression model and splines, we
+decided to use the following model to minimize prediction error and optimize
+model consistency across all four moments:
+
+$$
+log(moment) = \beta_0 + \beta_1St + \beta_2St^2 + \beta_3St^3 + \beta_4St^4 + \beta_5St^5 + 
+$$
+$$
+\beta_6St^6 + \beta_7St^7 + \beta_8Fr_{low} + \beta_9Fr_{moderate} + \beta_{10}Re_{low} + 
+$$
+$$
+\beta_{11}Re_{moderate} + \beta_{12}Fr_{low}*Re_{low} + 
+\beta_{13}Fr_{moderate}*Re_{low} + \beta_{14}Fr_{low}*Re_{moderate}
+$$ Our selected model performs consistently well on the provided test data, with
+adjusted $R^2$ values above 0.95. The model performs particularly exceptionally
+for moment 4, which has an adjusted $R^2$ value of 0.99.
+
+# Conclusion
+
+In conclusion, our analysis contains the examination of both linear and
+nonlinear regression models. These models included simple linear regression,
+log-transformation, interactions, polynomial terms, ridge regression, and
+natural splines. Our goal was to construct a predictive model for the particle
+cluster volume distribution in terms of its four raw moments. After a
+comprehensive assessment involving the residual analysis, Mean Squared Error
+(MSE), Akaike Information Criterion (AIC), and Bayesian Information Criterion
+(BIC), we determined that employing a seventh-degree polynomial for the
+parameters St, Re, Fr, and the interaction between Re and Fr provided the best
+fit for predicting the natural logarithm of the response variable (four raw
+moments).
+
+Regarding inference, our findings indicated that the continuous parameter St and
+the categorical parameters Re and Fr show a consistency influence on all
+moments, with the largest effect observed on the 4th raw moment.
+
+\newpage
+
+# Appendix
+
+## EDA
+
+```{r}
+summary(train)
+```
+
+```{r}
+# Create histograms for the predictor and response variables
+p.Re <- ggplot(train, aes(x = Re)) + geom_histogram()
+p.Fr <- ggplot(train, aes(x = Fr)) + geom_histogram()
+p.St <- ggplot(train, aes(x = St)) + geom_histogram()
+p1 <- ggplot(train, aes(x = R_moment_1)) + geom_histogram()
+p2 <- ggplot(train, aes(x = R_moment_2)) + geom_histogram()
+p3 <- ggplot(train, aes(x = R_moment_3)) + geom_histogram()
+p4 <- ggplot(train, aes(x = R_moment_4)) + geom_histogram()
+```
+
+```{r}
+figure1 <- grid.arrange(p.Re, p.Fr, p.St, p1, p2, p3, p4, ncol = 3, nrow = 3)
+figure1
+```
+
+```{r}
+# Create scatterplots to explore relationships between predictor variables with R_moment_1
+p1.Re <- ggplot(train, aes(x = Re, y = R_moment_1)) + geom_point()
+p1.Fr <- ggplot(train, aes(x = Fr, y = R_moment_1)) + geom_point()
+p1.St <- ggplot(train, aes(x = St, y = R_moment_1)) + geom_point()
+```
+
+```{r}
+# Create scatterplots to explore relationships between predictor variables with R_moment_2
+p2.Re <- ggplot(train, aes(x = Re, y = R_moment_2)) + geom_point()
+p2.Fr <- ggplot(train, aes(x = Fr, y = R_moment_2)) + geom_point()
+p2.St <- ggplot(train, aes(x = St, y = R_moment_2)) + geom_point()
+```
+
+```{r}
+# Create scatterplots to explore relationships between predictor variables with R_moment_3
+p3.Re <- ggplot(train, aes(x = Re, y = R_moment_3)) + geom_point()
+p3.Fr <- ggplot(train, aes(x = Fr, y = R_moment_3)) + geom_point()
+p3.St <- ggplot(train, aes(x = St, y = R_moment_3)) + geom_point()
+```
+
+```{r}
+# Create scatterplots to explore relationships between predictor variables with R_moment_4
+p4.Re <- ggplot(train, aes(x = Re, y = R_moment_4)) + geom_point()
+p4.Fr <- ggplot(train, aes(x = Fr, y = R_moment_4)) + geom_point()
+p4.St <- ggplot(train, aes(x = St, y = R_moment_4)) + geom_point()
+```
+
+```{r}
+figure2 <- grid.arrange(p1.Re, p1.Fr, p1.St, p2.Re, p2.Fr, p2.St, ncol = 3, nrow = 2)
+figure2
+```
+
+```{r}
+figure3 <- grid.arrange(p3.Re, p3.Fr, p3.St, p4.Re, p4.Fr, p4.St, ncol = 3, nrow = 2)
+figure3
+```
+
+## Final Model Prediction
+
+```{r}
+# Transform variables
+test <- test |>
+  mutate(
+    gravity = case_when(
+      Fr < 0.1 ~ "low gravity",
+      Fr < 1 & Fr > 0.1 ~ "moderate gravity",
+      Fr > 1 ~ "high gravity"
+    )
+  ) |>
+  mutate(
+    flow = case_when(
+      Re < 100 ~ "low flow",
+      Re < 300 & Re > 100 ~ "moderate flow",
+      Re > 300 ~ "high flow"
+    )
+  )
+```
+
+```{r}
+# prediction 
+
+model.1 <- lm(log(R_moment_1) ~ poly(St,7) + gravity + flow + flow:gravity, data = train)
+pred.1 <- predict(model.1, newdata = test)
+test$R_moment_1 <- pred.1
+
+model.2 <- lm(log(R_moment_2) ~ poly(St,7) + gravity + flow + flow:gravity, data = train)
+test$R_moment_2 <- predict(model.2, newdata = test)
+
+model.3 <- lm(log(R_moment_3) ~ poly(St,7) + gravity + flow + flow:gravity, data = train)
+test$R_moment_3 <- predict(model.3, newdata = test)
+
+model.4 <- lm(log(R_moment_4) ~ poly(St,7) + gravity + flow + flow:gravity, data = train)
+test$R_moment_4 <- predict(model.4, newdata = test)
+
+```
+
+```{r}
+write.csv(test, "data-test.csv", row.names=FALSE)
+```
+
+```{r}
+# uncertainty
+confint(model.1, level=0.95)
+confint(model.2, level=0.95)
+confint(model.3, level=0.95)
+confint(model.4, level=0.95)
+```
